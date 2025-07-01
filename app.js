@@ -46,7 +46,8 @@ let uploadedFiles = [null, null, null];
 async function findUserByEmail(email) {
     try {
         // Формируем запрос с фильтром по email
-        const response = await fetch(`${RECORDS_ENDPOINT}?where=(email,eq,${encodeURIComponent(email)})`, {
+        const response = await fetch(`${RECORDS_ENDPOINT}?where=(E-mail,eq,${encodeURIComponent(email)})`, {
+            method: 'GET',
             headers: {
                 "xc-token": API_KEY,
                 "Content-Type": "application/json"
