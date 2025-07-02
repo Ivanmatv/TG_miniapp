@@ -97,7 +97,7 @@ async function findUserByEmail(email) {
     * @param {File} file - Файл для загрузки
     * @returns {Promise<boolean>} - Успешно ли обновление
     */
-async function updateRecord(recordId, fieldId, file) {
+async function updateRecord(recordId, fieldId, file, extraData = {}) {
     try {
         // Создаем FormData для отправки файла
         const formData = new FormData();
