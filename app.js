@@ -1,3 +1,5 @@
+console.log("Поддержка Object.assign:", typeof Object.assign === "function");
+console.log("Поддержка spread оператора:", eval("typeof (() => {})") === "function");
 // Инициализация Telegram Web App
 const tg = window.Telegram.WebApp;
 tg.expand();
@@ -157,11 +159,13 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
         ];
         
         // 2. Формируем данные для обновления записи
-        const updateData = {
-            Id: Number(recordId),
-            [fieldId]: attachmentData, // Данные файла
-            ...extraData               // Дополнительные данные (дата загрузки)
-        };
+        const updateData = Object.assign(
+            {
+                Id: Number(recordId),
+                [fieldId]: attachmentData
+            },
+            extraData
+        );
         
         console.log("Отправка данных для обновления:", updateData);
         
