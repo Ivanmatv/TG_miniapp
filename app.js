@@ -65,8 +65,17 @@ async function findUserByEmail(email) {
         
         if (data.list && data.list.length > 0) {
             const record = data.list[0];
+            
+            // Добавляем проверку для "Id" (с большой I и маленькой d)
+            const recordId = record.id || record.Id || record.ID || record.recordId;
+            
+            if (!recordId) {
+                console.error("ID записи не найден в объекте:", record);
+                throw new Error("ID записи не найден");
+            }
+            
             return {
-                id: record.id || record.Id || record.ID,
+                id: recordId,
                 ...record
             };
         }
