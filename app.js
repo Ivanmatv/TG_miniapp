@@ -189,7 +189,7 @@ async function updateRecord(recordId, fieldId, file) {
         };
         
         console.log("Отправка данных для обновления:", updateData);
-        const updateResponse = await fetch(`${RECORDS_ENDPOINT}/${recordId}`, {
+        const updateResponse = await fetch(`${RECORDS_ENDPOINT}`, {
             method: "PATCH",
             headers: {
                 "xc-token": API_KEY,
@@ -206,7 +206,7 @@ async function updateRecord(recordId, fieldId, file) {
                 "Content-Type": "application/json"
             });
             console.error("Тело запроса:", JSON.stringify(updateData));
-            
+
             const errorText = await updateResponse.text();
             console.error("Ошибка обновления записи:", updateResponse.status, errorText);
             throw new Error(`Ошибка обновления записи: ${updateResponse.status}`);
