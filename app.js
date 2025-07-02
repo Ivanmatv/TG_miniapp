@@ -179,7 +179,7 @@ async function updateRecord(recordId, fieldId, file) {
         // Шаг 2: Обновляем запись с помощью attachment_id
         const updateData = {
             [fieldId]: JSON.stringify([{
-                id: attachmentId,
+                Id: Number(recordId),
                 title: fileName,
                 url: `${BASE_URL}/api/v2/storage/download/${attachmentId}`,
                 path: filePath,
@@ -189,11 +189,12 @@ async function updateRecord(recordId, fieldId, file) {
         };
         
         console.log("Отправка данных для обновления:", updateData);
-        const updateResponse = await fetch(`${RECORDS_ENDPOINT}`, {
+        const updateResponse = await fetch(RECORDS_ENDPOINT, {
             method: "PATCH",
             headers: {
                 "xc-token": API_KEY,
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "accept": "application/json"
             },
             body: JSON.stringify(updateData)
         });
