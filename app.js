@@ -99,24 +99,14 @@ async function updateRecord(recordId, fieldId, file) {
         // Создаем FormData для отправки файла
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('path', 'solutions'); // Опционально: папка для хранения
-
-        console.log("Отправка файла на сервер:", {
-            name: file.name,
-            type: file.type,
-            size: file.size
-        });
+        formData.append('path', 'solutions');
         
-        // Шаг 1: Загружаем файл и получаем attachment_id
+        // 1. Загружаем файл
         const uploadResponse = await fetch(FILE_UPLOAD_ENDPOINT, {
             method: 'POST',
-            headers: {
-                "xc-token": API_KEY
-            },
+            headers: { "xc-token": API_KEY },
             body: formData
         });
-
-        console.log("Статус ответа загрузки:", uploadResponse.status);
         
         if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
@@ -124,64 +114,32 @@ async function updateRecord(recordId, fieldId, file) {
             throw new Error(`Ошибка загрузки файла: ${uploadResponse.status}`);
         }
         
-        // Пытаемся получить разные форматы ответа
-        let uploadData;
-        try {
-            uploadData = await uploadResponse.json();
-            console.log("RAW JSON ответ:", JSON.stringify(uploadData, null, 2));
-        } catch (jsonError) {
-            const textResponse = await uploadResponse.text();
-            console.error("Ошибка парсинга JSON:", jsonError);
-            console.log("Текстовый ответ:", textResponse);
-            throw new Error("Некорректный ответ сервера");
+        // Получаем данные ответа
+        let uploadData = await uploadResponse.json();
+        
+        // Если ответ - объект, преобразуем в массив
+        if (!Array.isArray(uploadData)) {
+            uploadData = [uploadData];
         }
         
-        // Анализ структуры ответа
-        console.log("Тип ответа:", Array.isArray(uploadData) ? "array" : typeof uploadData);
-        
-        let fileInfo;
-        if (Array.isArray(uploadData) && uploadData.length > 0) {
-            console.log("Ответ в формате массива, первый элемент:", uploadData[0]);
-            fileInfo = uploadData[0];
-        } else if (typeof uploadData === 'object' && uploadData !== null) {
-            console.log("Ответ в формате объекта:", uploadData);
-            fileInfo = uploadData;
-        } else {
-            console.error("Неподдерживаемый формат ответа:", uploadData);
-            throw new Error("Неподдерживаемый формат ответа сервера");
+        // Проверяем наличие signedPath
+        if (!uploadData.length || !uploadData[0]?.signedPath) {
+            console.error("Не получен signedPath в ответе:", uploadData);
+            throw new Error("Не удалось получить информацию о файле");
         }
         
-        // Выводим все ключи объекта
-        console.log("Ключи в объекте файла:", Object.keys(fileInfo));
-        
-        // Попробуем найти ID в разных вариантах
-        const possibleIdFields = ['id', 'Id', 'ID', 'signedPath', 'path'];
-        let attachmentId;
-        
-        for (const field of possibleIdFields) {
-            if (fileInfo[field]) {
-                console.log(`Найдено поле ${field}:`, fileInfo[field]);
-                attachmentId = fileInfo[field];
-                break;
-            }
-        }
-        
-        if (!attachmentId) {
-            console.error("ID не найден в ответе. Полный объект:", fileInfo);
-            throw new Error("Не удалось получить ID файла");
-        }
-        
-        console.log("Используемый ID:", attachmentId);
-        
-        const fileName = fileInfo.title || fileInfo.name || file.name;
-        const filePath = fileInfo.path || 'solutions';
+        const firstItem = uploadData[0];
+        const attachmentId = firstItem.signedPath;
+        const fileName = firstItem.title || file.name;
+        const filePath = firstItem.path || 'solutions';
         
         // Шаг 2: Обновляем запись с помощью attachment_id
         const updateData = {
+            Id: Number(recordId), // Обязательное поле - ID записи
             [fieldId]: JSON.stringify([{
-                Id: Number(recordId),
+                id: attachmentId,
                 title: fileName,
-                url: `${BASE_URL}/api/v2/storage/download/${attachmentId}`,
+                url: `${BASE_URL}/api/v2/storage/download?path=${encodeURIComponent(attachmentId)}`,
                 path: filePath,
                 mimetype: file.type,
                 size: file.size
@@ -189,6 +147,8 @@ async function updateRecord(recordId, fieldId, file) {
         };
         
         console.log("Отправка данных для обновления:", updateData);
+        
+        // 3. Отправляем запрос на обновление записи
         const updateResponse = await fetch(RECORDS_ENDPOINT, {
             method: "PATCH",
             headers: {
@@ -200,14 +160,6 @@ async function updateRecord(recordId, fieldId, file) {
         });
         
         if (!updateResponse.ok) {
-            // Добавим больше информации об ошибке
-            console.error("URL запроса:", `${RECORDS_ENDPOINT}/${recordId}`);
-            console.error("Заголовки запроса:", {
-                "xc-token": API_KEY,
-                "Content-Type": "application/json"
-            });
-            console.error("Тело запроса:", JSON.stringify(updateData));
-
             const errorText = await updateResponse.text();
             console.error("Ошибка обновления записи:", updateResponse.status, errorText);
             throw new Error(`Ошибка обновления записи: ${updateResponse.status}`);
@@ -215,8 +167,6 @@ async function updateRecord(recordId, fieldId, file) {
         
         const updateResult = await updateResponse.json();
         console.log("Результат обновления записи:", updateResult);
-        
-        return true;
         
     } catch (error) {
         console.error("Ошибка при обновлении записи:", error);
