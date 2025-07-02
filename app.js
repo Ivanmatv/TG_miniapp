@@ -131,19 +131,20 @@ async function updateRecord(recordId, fieldId, file) {
         const firstItem = uploadData[0];
         const attachmentId = firstItem.signedPath;
         const fileName = firstItem.title || file.name;
-        const filePath = firstItem.path || 'solutions';
         
-        // Шаг 2: Обновляем запись с помощью attachment_id
+        // 2. Формируем данные для обновления записи
+        // В соответствии с форматом полей для решений
+        const attachmentData = {
+            mimetype: file.type,
+            size: file.size,
+            title: fileName,
+            url: `${BASE_URL}/api/v2/storage/download?path=${encodeURIComponent(attachmentId)}`,
+            icon: firstItem.icon || "mdi-file" // Используем иконку из ответа или значок по умолчанию
+        };
+        
         const updateData = {
-            Id: Number(recordId), // Обязательное поле - ID записи
-            [fieldId]: JSON.stringify([{
-                id: attachmentId,
-                title: fileName,
-                url: `${BASE_URL}/api/v2/storage/download?path=${encodeURIComponent(attachmentId)}`,
-                path: filePath,
-                mimetype: file.type,
-                size: file.size
-            }])
+            Id: Number(recordId),
+            [fieldId]: JSON.stringify([attachmentData]) // Массив с одним объектом
         };
         
         console.log("Отправка данных для обновления:", updateData);
@@ -167,6 +168,8 @@ async function updateRecord(recordId, fieldId, file) {
         
         const updateResult = await updateResponse.json();
         console.log("Результат обновления записи:", updateResult);
+        
+        return true;
         
     } catch (error) {
         console.error("Ошибка при обновлении записи:", error);
