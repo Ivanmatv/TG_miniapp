@@ -93,7 +93,7 @@ async function updateRecord(recordId, fieldId, file) {
         formData.append('path', 'solutions'); // Опционально: папка для хранения
         
         // Шаг 1: Загружаем файл и получаем attachment_id
-        const uploadResponse = await fetch(`${BASE_URL}/api/v2/db/storage/upload`, {
+        const uploadResponse = await fetch(FILE_UPLOAD_ENDPOINT, {
             method: 'POST',
             headers: {
                 "xc-token": API_KEY
