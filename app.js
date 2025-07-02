@@ -199,6 +199,14 @@ async function updateRecord(recordId, fieldId, file) {
         });
         
         if (!updateResponse.ok) {
+            // Добавим больше информации об ошибке
+            console.error("URL запроса:", `${RECORDS_ENDPOINT}/${recordId}`);
+            console.error("Заголовки запроса:", {
+                "xc-token": API_KEY,
+                "Content-Type": "application/json"
+            });
+            console.error("Тело запроса:", JSON.stringify(updateData));
+            
             const errorText = await updateResponse.text();
             console.error("Ошибка обновления записи:", updateResponse.status, errorText);
             throw new Error(`Ошибка обновления записи: ${updateResponse.status}`);
