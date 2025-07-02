@@ -18,7 +18,7 @@ const SOLUTION_FIELDS = {
     solution3: "c7bnf9vndqjyzll"  // Загрузите решение 3
 };
 
-const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ"; // Замените на реальный ключ
+const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
 
 // Элементы интерфейса
 const screens = {
@@ -59,9 +59,14 @@ async function findUserByEmail(email) {
         }
         
         const data = await response.json();
+        console.log("User search response:", data); // Для отладки
         
         if (data.list && data.list.length > 0) {
-            return data.list[0];
+            const record = data.list[0];
+            return {
+                id: record.id || record.Id || record.ID,
+                ...record
+            };
         }
         
         return null;
@@ -94,10 +99,17 @@ async function updateRecord(recordId, fieldId, file) {
         });
         
         if (!uploadResponse.ok) {
-            throw new Error(`Ошибка загрузки файла: ${uploadResponse.status}`);
+            const errorText = await uploadResponse.text();
+            throw new Error(`Ошибка загрузки файла: ${uploadResponse.status} - ${errorText}`);
         }
         
         const uploadData = await uploadResponse.json();
+        console.log("File upload response:", uploadData); // Для отладки
+
+        if (!uploadData.id) {
+                throw new Error("Не получен ID вложения");
+        }
+
         const attachmentId = uploadData.id;
         
         // Шаг 2: Обновляем запись с помощью attachment_id
@@ -113,8 +125,12 @@ async function updateRecord(recordId, fieldId, file) {
         });
         
         if (!updateResponse.ok) {
-            throw new Error(`Ошибка обновления записи: ${updateResponse.status}`);
+            const errorText = await updateResponse.text();
+            throw new Error(`Ошибка обновления записи: ${updateResponse.status} - ${errorText}`);
         }
+
+        const updateData = await updateResponse.json();
+        console.log("Record update response:", updateData); // Для отладки
         
         return true;
     } catch (error) {
