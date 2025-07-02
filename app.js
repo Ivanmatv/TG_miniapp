@@ -115,16 +115,15 @@ async function updateRecord(recordId, fieldId, file) {
             throw new Error("Не получен ID вложения");
         }
         
-        const attachmentId = uploadData.id;
-        const fileName = uploadData.title || file.name;
+        const attachmentPath = uploadData[0].path;
+        const fileName = uploadData[0].title || file.name;
         
         // Шаг 2: Обновляем запись с помощью attachment_id
         const updateData = {
             [fieldId]: JSON.stringify([{
-                id: attachmentId,
+                path: attachmentPath,
                 title: fileName,
-                url: `${BASE_URL}/api/v2/storage/download/${attachmentId}`,
-                path: uploadData.path || 'solutions',
+                url: `${BASE_URL}/${attachmentPath}`,
                 mimetype: file.type,
                 size: file.size
             }])
