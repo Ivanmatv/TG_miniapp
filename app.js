@@ -8,6 +8,9 @@ const BASE_URL = "https://ndb.fut.ru";
 const TABLE_ID = "maiff22q0tefj6t";
 const VIEW_ID = "vwy5xmvdj8cuwwcx";
 
+// Добавим ID поля для даты загрузки
+const DATE_FIELD_ID = "c6plh1xqwz9zdle";
+
 // Эндпоинты для работы с записями
 const RECORDS_ENDPOINT = `${BASE_URL}/api/v2/tables/${TABLE_ID}/records`;
 const FILE_UPLOAD_ENDPOINT = `${BASE_URL}/api/v2/storage/upload`;
@@ -156,7 +159,8 @@ async function updateRecord(recordId, fieldId, file) {
         // 2. Формируем данные для обновления записи
         const updateData = {
             Id: Number(recordId),
-            [fieldId]: attachmentData // Не используем JSON.stringify!
+            [fieldId]: attachmentData, // Данные файла
+            ...extraData               // Дополнительные данные (дата загрузки)
         };
         
         console.log("Отправка данных для обновления:", updateData);
@@ -332,8 +336,19 @@ async function handleFileUpload(fileNumber, fieldId, nextScreen) {
             `status${fileNumber}`
         );
         
-        // Обновление записи в базе данных
-        await updateRecord(currentRecordId, fieldId, file);
+        // Формируем дополнительные данные для обновления
+        let extraData = {};
+        
+        // Если это первый файл, добавляем дату загрузки
+        if (fileNumber === 1) {
+            const today = new Date();
+            // Форматируем дату в YYYY-MM-DD (ISO 8601)
+            const formattedDate = today.toISOString().split('T')[0];
+            extraData[DATE_FIELD_ID] = formattedDate;
+        }
+        
+        // Обновление записи в базе данных с дополнительными данными
+        await updateRecord(currentRecordId, fieldId, file, extraData);
         
         uploadedFiles[fileNumber - 1] = file;
         
