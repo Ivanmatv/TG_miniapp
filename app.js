@@ -10,6 +10,7 @@ const VIEW_ID = "vwy5xmvdj8cuwwcx";
 
 // Эндпоинты для работы с записями
 const RECORDS_ENDPOINT = `${BASE_URL}/api/v2/tables/${TABLE_ID}/records`;
+const FILE_UPLOAD_ENDPOINT = `${BASE_URL}/api/v2/storage/upload`;
 
 // ID полей для загрузки решений
 const SOLUTION_FIELDS = {
@@ -18,6 +19,7 @@ const SOLUTION_FIELDS = {
     solution3: "c7bnf9vndqjyzll"  // Загрузите решение 3
 };
 
+// Ключ 
 const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
 
 // Элементы интерфейса
@@ -88,6 +90,7 @@ async function updateRecord(recordId, fieldId, file) {
         // Создаем FormData для отправки файла
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('path', 'solutions'); // Опционально: папка для хранения
         
         // Шаг 1: Загружаем файл и получаем attachment_id
         const uploadResponse = await fetch(`${BASE_URL}/api/v2/db/storage/upload`, {
@@ -100,39 +103,54 @@ async function updateRecord(recordId, fieldId, file) {
         
         if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
-            throw new Error(`Ошибка загрузки файла: ${uploadResponse.status} - ${errorText}`);
+            console.error("Ошибка загрузки файла:", uploadResponse.status, errorText);
+            throw new Error(`Ошибка загрузки файла: ${uploadResponse.status}`);
         }
         
         const uploadData = await uploadResponse.json();
         console.log("File upload response:", uploadData); // Для отладки
 
-        if (!uploadData.id) {
-                throw new Error("Не получен ID вложения");
+        if (!uploadData?.id) {
+            console.error("Не получен ID вложения в ответе:", uploadData);
+            throw new Error("Не получен ID вложения");
         }
-
+        
         const attachmentId = uploadData.id;
+        const fileName = uploadData.title || file.name;
         
         // Шаг 2: Обновляем запись с помощью attachment_id
+        const updateData = {
+            [fieldId]: JSON.stringify([{
+                id: attachmentId,
+                title: fileName,
+                url: `${BASE_URL}/api/v2/storage/download/${attachmentId}`,
+                path: uploadData.path || 'solutions',
+                mimetype: file.type,
+                size: file.size
+            }])
+        };
+        
+        console.log("Отправка данных для обновления:", updateData);
         const updateResponse = await fetch(`${RECORDS_ENDPOINT}/${recordId}`, {
             method: "PATCH",
             headers: {
                 "xc-token": API_KEY,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                [fieldId]: JSON.stringify([{ id: attachmentId }])
-            })
+            body: JSON.stringify(updateData)
         });
         
         if (!updateResponse.ok) {
             const errorText = await updateResponse.text();
-            throw new Error(`Ошибка обновления записи: ${updateResponse.status} - ${errorText}`);
+            console.error("Ошибка обновления записи:", updateResponse.status, errorText);
+            throw new Error(`Ошибка обновления записи: ${updateResponse.status}`);
         }
-
-        const updateData = await updateResponse.json();
-        console.log("Record update response:", updateData); // Для отладки
+        
+        const updateResult = await updateResponse.json();
+        console.log("Результат обновления записи:", updateResult);
         
         return true;
+        
     } catch (error) {
         console.error("Ошибка при обновлении записи:", error);
         throw new Error("Не удалось сохранить файл. Пожалуйста, попробуйте позже.");
