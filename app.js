@@ -107,23 +107,31 @@ async function updateRecord(recordId, fieldId, file) {
             throw new Error(`Ошибка загрузки файла: ${uploadResponse.status}`);
         }
         
-        const uploadData = await uploadResponse.json();
-        console.log("File upload response:", uploadData); // Для отладки
-
-        if (!uploadData?.id) {
+        // Получаем данные ответа
+        let uploadData = await uploadResponse.json();
+        
+        // Если ответ - объект, преобразуем в массив
+        if (!Array.isArray(uploadData)) {
+            uploadData = [uploadData];
+        }
+        
+        // Проверяем наличие ID в первом элементе массива
+        if (!uploadData.length || !uploadData[0]?.id) {
             console.error("Не получен ID вложения в ответе:", uploadData);
             throw new Error("Не получен ID вложения");
         }
         
-        const attachmentPath = uploadData[0].path;
-        const fileName = uploadData[0].title || file.name;
+        const firstItem = uploadData[0];
+        const attachmentId = firstItem.id;
+        const fileName = firstItem.title || file.name;
         
         // Шаг 2: Обновляем запись с помощью attachment_id
         const updateData = {
             [fieldId]: JSON.stringify([{
-                path: attachmentPath,
+                id: attachmentId,
                 title: fileName,
-                url: `${BASE_URL}/${attachmentPath}`,
+                url: `${BASE_URL}/api/v2/storage/download/${attachmentId}`,
+                path: uploadData.path || 'solutions',
                 mimetype: file.type,
                 size: file.size
             }])
