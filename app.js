@@ -128,22 +128,35 @@ async function updateRecord(recordId, fieldId, file) {
             throw new Error("Не удалось получить информацию о файле");
         }
         
+        // Получаем данные о загруженном файле
         const firstItem = uploadData[0];
-        const attachmentId = firstItem.signedPath;
+        const attachmentPath = firstItem.signedPath;
         const fileName = firstItem.title || file.name;
-        const filePath = firstItem.path || 'solutions';
+        const fileType = file.type;
+        const fileSize = file.size;
+        
+        // Определяем иконку по типу файла
+        const getFileIcon = (mimeType) => {
+            if (mimeType.includes("pdf")) return "mdi-file-pdf-outline";
+            if (mimeType.includes("word")) return "mdi-file-word-outline";
+            return "mdi-file-outline";
+        };
+        
+        // Формируем данные для поля Attachment
+        const attachmentData = [
+            {
+                mimetype: fileType,
+                size: fileSize,
+                title: fileName,
+                url: `${BASE_URL}/api/v2/storage/download?path=${encodeURIComponent(attachmentPath)}`,
+                icon: getFileIcon(fileType)
+            }
+        ];
         
         // 2. Формируем данные для обновления записи
         const updateData = {
-            Id: Number(recordId), // Обязательное поле - ID записи
-            [fieldId]: JSON.stringify([{
-                id: attachmentId,
-                title: fileName,
-                url: `${BASE_URL}/api/v2/storage/download?path=${encodeURIComponent(attachmentId)}`,
-                path: filePath,
-                mimetype: file.type,
-                size: file.size
-            }])
+            Id: Number(recordId),
+            [fieldId]: attachmentData // Не используем JSON.stringify!
         };
         
         console.log("Отправка данных для обновления:", updateData);
