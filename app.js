@@ -153,7 +153,8 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
                 mimetype: fileType,
                 size: fileSize,
                 title: fileName,
-                url: `${BASE_URL}/api/v2/storage/download?path=${encodeURIComponent(attachmentPath)}`,
+                // Используем путь из ответа сервера для скачивания
+                url: `${BASE_URL}/${firstItem.path}`,
                 icon: getFileIcon(fileType)
             }
         ];
