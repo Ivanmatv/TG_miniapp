@@ -1,5 +1,3 @@
-console.log("Поддержка Object.assign:", typeof Object.assign === "function");
-console.log("Поддержка spread оператора:", eval("typeof (() => {})") === "function");
 // Инициализация Telegram Web App
 const tg = window.Telegram.WebApp;
 tg.expand();
@@ -135,7 +133,6 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
         
         // Получаем данные о загруженном файле
         const firstItem = uploadData[0];
-        const attachmentPath = firstItem.signedPath;
         const fileName = firstItem.title || file.name;
         const fileType = file.type;
         const fileSize = file.size;
@@ -144,6 +141,8 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
         const getFileIcon = (mimeType) => {
             if (mimeType.includes("pdf")) return "mdi-file-pdf-outline";
             if (mimeType.includes("word")) return "mdi-file-word-outline";
+            if (mimeType.includes("excel") || mimeType.includes("spreadsheet")) return "mdi-file-excel-outline";
+            if (mimeType.includes("png")) return "mdi-file-image-outline";
             return "mdi-file-outline";
         };
         
@@ -206,14 +205,26 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
     * @returns {string|null} - Сообщение об ошибке или null, если файл валиден
     */
 function validateFile(file) {
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 15 * 1024 * 1024) {
         return "Файл слишком большой (макс. 5MB)";
     }
     
     const validTypes = [
+        // Документы
         "application/pdf", 
         "application/msword", 
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
+        // Таблицы
+        "application/vnd.ms-excel", // XLS
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
+        "application/vnd.ms-excel.sheet.macroEnabled.12", // XLSM
+        "application/vnd.ms-excel.addin.macroEnabled.12",  // XLAM
+        // Изображения
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/gif",
+        "image/webp"
     ];
     
     if (!validTypes.includes(file.type)) {
