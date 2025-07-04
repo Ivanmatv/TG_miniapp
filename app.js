@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!userRecord) {
         //Обработка случая, когда пользователь не найден
-        showErrorScreen("Пользователь не найден в базе данных. Обратитесь в техническую поддержку.");
+        showErrorScreen("Напишите нам в боте и мы вам поможем");
         return;
     }
 
