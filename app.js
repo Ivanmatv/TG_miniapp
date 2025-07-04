@@ -41,6 +41,27 @@ let currentUserEmail = "";
 let currentRecordId = null;
 let uploadedFiles = [null, null, null];
 
+// Функция аутентификации по tg-id
+function getTelegramUserId() {
+  if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe) {
+    const user = Telegram.WebApp.initDataUnsafe.user;
+    if (user && user.id) {
+      return user.id;
+    }
+  }
+  return null;
+}
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  Telegram.WebApp.ready();
+  const id = getTelegramUserId();
+  const startParam = Telegram.WebApp.initDataUnsafe?.start_param;
+  console.log("tg-id:", id);
+  window.tgUserId = id;
+  window.tgUserStartParam = startParam;
+});
+
 // Функции для работы с NocoDB API
 
 /**
