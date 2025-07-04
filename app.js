@@ -27,17 +27,12 @@ const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
 
 // Элементы интерфейса
 const screens = {
-    email: document.getElementById("emailScreen"),
     upload1: document.getElementById("uploadScreen1"),
     upload2: document.getElementById("uploadScreen2"),
     upload3: document.getElementById("uploadScreen3"),
     result: document.getElementById("resultScreen")
 };
 
-const emailInput = document.getElementById("emailInput");
-const emailError = document.getElementById("emailError");
-
-let currentUserEmail = "";
 let currentRecordId = null;
 let uploadedFiles = [null, null, null];
 
@@ -53,14 +48,50 @@ function getTelegramUserId() {
 }
 
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   Telegram.WebApp.ready();
   const id = getTelegramUserId();
   const startParam = Telegram.WebApp.initDataUnsafe?.start_param;
   console.log("tg-id:", id);
   window.tgUserId = id;
   window.tgUserStartParam = startParam;
+
+  try {
+    // Ищем пользователя по Telegram ID
+    const userRecord = await findUserByTelegramId();
+
+    if (!userRecord) {
+        //Обработка случая, когда пользователь не найден
+        showErrorScreen("Пользователь не найден в базе данных. Обратитесь в техническую поддержку.");
+        return;
+    }
+
+    currentRecordId = userRecord.id;
+    // Сразу показываем первый экран загрузки
+    showScreen("upload1");
+
+  } catch (error) {
+    showErrorScreen(error.message)
+  }
 });
+
+// Функция для показа ошибок
+function showErrorScreen(message) {
+    // Создаем элементы для отображения ошибки
+    const errorScreen = document.createElement("div");
+    errorScreen.className = "screen";
+    errorScreen.innerHTML = `
+        <h2>Произошла ошибка</h2>
+        <div class="error-message">${message}</div>
+        <button id="closeApp">Закрыть приложение</button>
+    `;
+    document.body.appendChild(errorScreen);
+    
+    // Добавляем обработчик закрытия
+    document.getElementById("closeApp").addEventListener("click", () => {
+        tg.close();
+    });
+}
 
 // Функции для работы с NocoDB API
 
@@ -69,10 +100,10 @@ document.addEventListener("DOMContentLoaded", () => {
     * @param {string} email - Адрес электронной почты
     * @returns {Promise<Object|null>} - Найденная запись или null
     */
-async function findUserByEmail(email) {
+async function findUserByTelegramId() {
     try {
         // Формируем запрос с фильтром по email
-        const response = await fetch(`${RECORDS_ENDPOINT}?where=(E-mail,eq,${encodeURIComponent(email)})`, {
+        const response = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${window.tgUserId})`, {
             method: 'GET',
             headers: {
                 "xc-token": API_KEY,
@@ -294,10 +325,15 @@ function trackUploadProgress(file, progressId, statusId) {
     * @param {string} toScreen - ID экрана для отображения
     */
 function showScreen(toScreen) {
-    Object.values(screens).forEach(screen => {
+    // Скрываем все экраны
+    document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.add("hidden");
     });
-    screens[toScreen].classList.remove("hidden");
+    
+    // Показываем только целевой экран
+    if (screens[toScreen]) {
+        screens[toScreen].classList.remove("hidden");
+    }
 }
 
 /**
