@@ -68,7 +68,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     currentRecordId = userRecord.id;
     // Сразу показываем первый экран загрузки
-    showScreen("upload");
+    showScreen("upload1");
 
   } catch (error) {
     showErrorScreen(error.message)
