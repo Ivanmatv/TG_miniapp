@@ -348,32 +348,6 @@ function showError(element, message) {
 
 // Обработчики событий
 
-// Обработка ввода email
-document.getElementById("submitEmail").addEventListener("click", async () => {
-    const email = emailInput.value.trim();
-    emailError.classList.add("hidden");
-    
-    if (!email) {
-        showError(emailError, "Введите адрес электронной почты");
-        return;
-    }
-    
-    try {
-        const userRecord = await findUserByEmail(email);
-        
-        if (!userRecord) {
-            showError(emailError, "Пользователь с таким email не найден");
-            return;
-        }
-        
-        currentUserEmail = email;
-        currentRecordId = userRecord.id;
-        showScreen("upload1");
-    } catch (error) {
-        showError(emailError, error.message);
-    }
-});
-
 // Обработка загрузки файлов
 
 /**
