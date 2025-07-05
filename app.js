@@ -96,7 +96,8 @@ function showErrorScreen(message) {
 // Функции для работы с NocoDB API
 
 /**
-    * Поиск пользователя по tg-id в базе NocoDB
+    * Поиск пользователя по email в базе NocoDB
+    * @param {string} email - Адрес электронной почты
     * @returns {Promise<Object|null>} - Найденная запись или null
     */
 async function findUserByTelegramId() {
@@ -257,7 +258,7 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
     */
 function validateFile(file) {
     if (file.size > 15 * 1024 * 1024) {
-        return "Файл слишком большой (макс. 15MB)";
+        return "Файл слишком большой (макс. 5MB)";
     }
     
     const validTypes = [
@@ -459,4 +460,11 @@ document.getElementById("skipFile3").addEventListener("click", () => {
 // Закрытие приложения
 document.getElementById("closeApp").addEventListener("click", () => {
     tg.close();
+});
+
+// Обработка нажатия Enter в поле email
+emailInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+        document.getElementById("submitEmail").click();
+    }
 });
