@@ -435,10 +435,3 @@ document.getElementById("skipFile3").addEventListener("click", () => {
 document.getElementById("closeApp").addEventListener("click", () => {
     tg.close();
 });
-
-// Обработка нажатия Enter в поле email
-emailInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-        document.getElementById("submitEmail").click();
-    }
-});
