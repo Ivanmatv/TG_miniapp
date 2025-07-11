@@ -179,3 +179,20 @@ button:focus {
         font-size: 1.5rem;
     }
 }
+
+/* Добавим стили для маркированного списка */
+#welcomeScreen ol {
+    padding-left: 20px;
+    margin: 15px 0;
+}
+
+#welcomeScreen li {
+    margin-bottom: 10px;
+}
+
+#welcomeScreen .tip-box {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+}

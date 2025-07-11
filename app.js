@@ -27,6 +27,7 @@ const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
 
 // Элементы интерфейса
 const screens = {
+    welcome: document.getElementById("welcomeScreen"),
     upload1: document.getElementById("uploadScreen1"),
     upload2: document.getElementById("uploadScreen2"),
     upload3: document.getElementById("uploadScreen3"),
@@ -68,7 +69,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     currentRecordId = userRecord.id;
     // Сразу показываем первый экран загрузки
-    showScreen("upload1");
+    showScreen("welcome");
 
   } catch (error) {
     showErrorScreen(error.message)
@@ -410,6 +411,10 @@ async function handleFileUpload(fileNumber, fieldId, nextScreen) {
 }
 
 // Назначение обработчиков для кнопок загрузки файлов
+document.getElementById("startUpload").addEventListener("click", () => {
+    showScreen("upload1");
+});
+
 document.getElementById("submitFile1").addEventListener("click", () => {
     handleFileUpload(1, SOLUTION_FIELDS.solution1, "upload2");
 });
