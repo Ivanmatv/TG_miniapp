@@ -196,3 +196,7 @@ button:focus {
     border-radius: 8px;
     margin-top: 20px;
 }
+
+.fig {
+    text-align: center; /* Выравнивание по центру */ 
+}
