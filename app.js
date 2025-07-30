@@ -152,12 +152,10 @@ async function findUserByTelegramId() {
     */
 async function updateRecord(recordId, fieldId, file, extraData = {}) {
     try {
-        // Создаем FormData для отправки файла
         const formData = new FormData();
         formData.append('file', file);
         formData.append('path', 'solutions');
         
-        // 1. Загружаем файл
         const uploadResponse = await fetch(FILE_UPLOAD_ENDPOINT, {
             method: 'POST',
             headers: { "xc-token": API_KEY },
@@ -170,27 +168,28 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
             throw new Error(`Ошибка загрузки файла: ${uploadResponse.status}`);
         }
         
-        // Получаем данные ответа
         let uploadData = await uploadResponse.json();
         
-        // Если ответ - объект, преобразуем в массив
         if (!Array.isArray(uploadData)) {
             uploadData = [uploadData];
         }
         
-        // Проверяем наличие signedPath
-        if (!uploadData.length || !uploadData[0]?.signedPath) {
-            console.error("Не получен signedPath в ответе:", uploadData);
+        // ФИКС: Обновленная проверка URL
+        if (!uploadData.length || !(uploadData[0]?.url || uploadData[0]?.path)) {
+            console.error("Не получен url или path в ответе:", uploadData);
             throw new Error("Не удалось получить информацию о файле");
         }
         
-        // Получаем данные о загруженном файле
         const firstItem = uploadData[0];
         const fileName = firstItem.title || file.name;
         const fileType = file.type;
         const fileSize = file.size;
         
-        // Определяем иконку по типу файла
+        // ФИКС: Получаем корректный URL
+        const fileUrl = firstItem.url 
+            ? firstItem.url 
+            : `${BASE_URL}/${firstItem.path}`;
+        
         const getFileIcon = (mimeType) => {
             if (mimeType.includes("pdf")) return "mdi-file-pdf-outline";
             if (mimeType.includes("word")) return "mdi-file-word-outline";
@@ -199,19 +198,16 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
             return "mdi-file-outline";
         };
         
-        // Формируем данные для поля Attachment
         const attachmentData = [
             {
                 mimetype: fileType,
                 size: fileSize,
                 title: fileName,
-                // Используем путь из ответа сервера для скачивания
-                url: `${BASE_URL}/${firstItem.path}`,
+                url: fileUrl, // ФИКС: Используем корректный URL
                 icon: getFileIcon(fileType)
             }
         ];
         
-        // 2. Формируем данные для обновления записи
         const updateData = Object.assign(
             {
                 Id: Number(recordId),
@@ -222,7 +218,6 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
         
         console.log("Отправка данных для обновления:", updateData);
         
-        // 3. Отправляем запрос на обновление записи
         const updateResponse = await fetch(RECORDS_ENDPOINT, {
             method: "PATCH",
             headers: {
