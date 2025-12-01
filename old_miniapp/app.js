@@ -203,7 +203,7 @@ async function updateRecord(recordId, fieldId, file, extraData = {}) {
                 mimetype: fileType,
                 size: fileSize,
                 title: fileName,
-                url: fileUrl, // ФИКС: Используем корректный URL
+                url: fileUrl,
                 icon: getFileIcon(fileType)
             }
         ];

@@ -5,7 +5,7 @@ tg.MainButton.hide();
 
 // Конфигурация NocoDB API
 const BASE_URL = "https://ndb.fut.ru";
-const TABLE_ID = "moqj9txmglwy87u";
+const TABLE_ID = "m6tyxd3346dlhco";
 const VIEW_ID = "vwy5xmvdj8cuwwcx";
 
 // Добавим ID поля для даты загрузки
@@ -50,29 +50,52 @@ function getTelegramUserId() {
 
 
 document.addEventListener("DOMContentLoaded", async () => {
-  Telegram.WebApp.ready();
-  const id = getTelegramUserId();
-  const startParam = Telegram.WebApp.initDataUnsafe?.start_param;
-  console.log("tg-id:", id);
-  window.tgUserId = id;
-  window.tgUserStartParam = startParam;
+  let userId;
+  let startParam;
+  let platform;
+
+  if (window.Telegram && Telegram.WebApp) {
+    platform = 'tg';
+    window.platform = platform;
+    Telegram.WebApp.ready();
+    userId = getTelegramUserId();
+    startParam = Telegram.WebApp.initDataUnsafe?.start_param;
+    console.log("tg-id:", userId);
+    window.tgUserId = userId;
+    window.tgUserStartParam = startParam;
+  } else if (typeof vkBridge !== 'undefined') {
+    platform = 'vk';
+    window.platform = platform;
+    try {
+      await vkBridge.send('VKWebAppInit');
+      console.log('VK Mini App initialized');
+      const u = await vkBridge.send('VKWebAppGetUserInfo');
+      userId = u.id;
+      console.log("vk-id:", userId);
+      window.vkUserId = userId;
+    } catch (err) {
+      console.error('VK init error:', err);
+      showErrorScreen('Ошибка инициализации VK: ' + err.message);
+      return;
+    }
+  } else {
+    showErrorScreen('Платформа не поддерживается');
+    return;
+  }
 
   try {
-    // Ищем пользователя по Telegram ID
-    const userRecord = await findUserByTelegramId();
+    const userRecord = await findUserByPlatformId(platform, userId);
 
     if (!userRecord) {
-        //Обработка случая, когда пользователь не найден
-        showErrorScreen("Напишите нам в боте и мы вам поможем");
-        return;
+      showErrorScreen("Напишите нам в боте и мы вам поможем");
+      return;
     }
 
     currentRecordId = userRecord.id;
-    // Сразу показываем первый экран загрузки
     showScreen("welcome");
 
   } catch (error) {
-    showErrorScreen(error.message)
+    showErrorScreen(error.message);
   }
 });
 
@@ -89,9 +112,14 @@ function showErrorScreen(message) {
     document.body.appendChild(errorScreen);
     
     // Добавляем обработчик закрытия
-    document.getElementById("closeApp").addEventListener("click", () => {
-        tg.close();
-    });
+    const closeFunc = () => {
+        if (window.platform === 'tg') {
+            tg.close();
+        } else if (window.platform === 'vk') {
+            vkBridge.send('VKWebAppClose');
+        }
+    };
+    document.getElementById("closeApp").addEventListener("click", closeFunc);
 }
 
 // Функции для работы с NocoDB API
@@ -101,10 +129,10 @@ function showErrorScreen(message) {
     * @param {string} email - Адрес электронной почты
     * @returns {Promise<Object|null>} - Найденная запись или null
     */
-async function findUserByTelegramId() {
+async function findUserByPlatformId(platform, userId) {
     try {
         // Формируем запрос с фильтром по email
-        const response = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${window.tgUserId})`, {
+        const response = await fetch(`${RECORDS_ENDPOINT}?where=(${platform}-id,eq,${userId})`, {
             method: 'GET',
             headers: {
                 "xc-token": API_KEY,
