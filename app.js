@@ -1,31 +1,25 @@
-// Инициализация Telegram Web App
-const tg = window.Telegram.WebApp;
-tg.expand();
-tg.MainButton.hide();
+// app.js — ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ (декабрь 2025)
+// Один столбец tg-id: Telegram → чистое число, VK → число + "_VK"
 
-// Конфигурация NocoDB API
 const BASE_URL = "https://ndb.fut.ru";
 const TABLE_ID = "m6tyxd3346dlhco";
-const VIEW_ID = "vwy5xmvdj8cuwwcx";
+const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
 
-// Добавим ID поля для даты загрузки
-const DATE_FIELD_ID = "ceasp9wcrd0ch0m";
-
-// Эндпоинты для работы с записями
 const RECORDS_ENDPOINT = `${BASE_URL}/api/v2/tables/${TABLE_ID}/records`;
 const FILE_UPLOAD_ENDPOINT = `${BASE_URL}/api/v2/storage/upload`;
 
-// ID полей для загрузки решений
 const SOLUTION_FIELDS = {
-    solution1: "ciqdqkdc7frd7kr", // Загрузите решение 1
-    solution2: "civhqu1url55ef7", // Загрузите решение 2
-    solution3: "ck7de0z75mrtzt6"  // Загрузите решение 3
+    solution1: "ciqdqkdc7frd7kr",
+    solution2: "civhqu1url55ef7",
+    solution3: "ck7de0z75mrtzt6"
 };
 
-// Ключ 
-const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
+const DATE_FIELD_ID = "ceasp9wcrd0ch0m"; // дата первой загрузки
 
-// Элементы интерфейса
+let currentRecordId = null;
+let userPlatform = null;   // 'tg' или 'vk'
+let rawUserId = null;      // чистый числовой ID из TG или VK
+
 const screens = {
     welcome: document.getElementById("welcomeScreen"),
     upload1: document.getElementById("uploadScreen1"),
@@ -34,441 +28,212 @@ const screens = {
     result: document.getElementById("resultScreen")
 };
 
-let currentRecordId = null;
-let uploadedFiles = [null, null, null];
-
-// Функция аутентификации по tg-id
-function getTelegramUserId() {
-  if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe) {
-    const user = Telegram.WebApp.initDataUnsafe.user;
-    if (user && user.id) {
-      return user.id;
-    }
-  }
-  return null;
+// Ждём готовности Telegram WebApp
+function waitForTelegram() {
+    return new Promise(resolve => {
+        if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) return resolve(window.Telegram.WebApp);
+        const int = setInterval(() => {
+            if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+                clearInterval(int);
+                resolve(window.Telegram.WebApp);
+            }
+        }, 100);
+        setTimeout(() => { clearInterval(int); resolve(window.Telegram.WebApp); }, 5000);
+    });
 }
 
+function showScreen(id) {
+    Object.values(screens).forEach(s => s?.classList.add("hidden"));
+    screens[id]?.classList.remove("hidden");
+}
 
-document.addEventListener("DOMContentLoaded", async () => {
-  let userId = null;
-  let platform = null;
-
-  // Сначала проверяем VK — у него есть vkBridge
-  if (typeof vkBridge !== 'undefined' && window.location.href.includes('vk.com')) {
-    platform = 'vk';
-    window.platform = platform;
-
-    try {
-      await vkBridge.send('VKWebAppInit');
-      const u = await vkBridge.send('VKWebAppGetUserInfo');
-      userId = u.id;
-      window.vkUserId = userId;
-      console.log("vk-id:", userId);
-    } catch (err) {
-      console.error('VK init error:', err);
-      showErrorScreen('Ошибка VK: ' + err.message);
-      return;
-    }
-  }
-  // Потом Telegram — только если VK не определился
-  else if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
-    const tg = window.Telegram.WebApp;
-    tg.ready();
-    tg.expand();
-
-    platform = 'tg';
-    window.platform = platform;
-
-    userId = tg.initDataUnsafe.user.id;
-    window.tgUserId = userId;
-    console.log("tg-id:", userId);
-  }
-
-  // Если ни одна платформа не дала ID
-  if (!userId || !platform) {
-    showErrorScreen('Не удалось определить платформу или пользователя');
-    return;
-  }
-
-  // Дальше всё как было
-  try {
-    const userRecord = await findUserByPlatformId(platform, userId);
-
-    if (!userRecord) {
-      showErrorScreen("Пользователь не найден в базе. Напишите нам в боте @…");
-      return;
-    }
-
-    currentRecordId = userRecord.id || userRecord.Id;
-    showScreen("welcome");
-
-  } catch (error) {
-    console.error(error);
-    showErrorScreen('Ошибка сервера: ' + error.message);
-  }
-});
-
-// Функция для показа ошибок
-function showErrorScreen(message) {
-    // Создаем элементы для отображения ошибки
-    const errorScreen = document.createElement("div");
-    errorScreen.className = "screen";
-    errorScreen.innerHTML = `
-        <h2>Произошла ошибка</h2>
-        <div class="error-message">${message}</div>
-        <button id="closeApp">Закрыть приложение</button>
-    `;
-    document.body.appendChild(errorScreen);
-    
-    // Добавляем обработчик закрытия
-    const closeFunc = () => {
-        if (window.platform === 'tg') {
-            tg.close();
-        } else if (window.platform === 'vk') {
-            vkBridge.send('VKWebAppClose');
+function showError(msg) {
+    const div = document.createElement("div");
+    div.className = "screen";
+    div.innerHTML = `
+        <div style="text-align:center;padding:40px;color:#fff;">
+            <h2>Ошибка</h2>
+            <p style="margin:20px 0;font-size:18px;">${msg}</p>
+            <button id="closeErr" style="padding:12px 32px;font-size:17px;">Закрыть</button>
+        </div>`;
+    document.body.appendChild(div);
+    document.getElementById("closeErr").onclick = () => {
+        if (userPlatform === 'vk' && typeof vkBridge !== 'undefined') {
+            vkBridge.send("VKWebAppClose", {status: "success"});
+        } else if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.close();
         }
     };
-    document.getElementById("closeApp").addEventListener("click", closeFunc);
 }
 
-// Функции для работы с NocoDB API
-
-/**
-    * Поиск пользователя по email в базе NocoDB
-    * @param {string} email - Адрес электронной почты
-    * @returns {Promise<Object|null>} - Найденная запись или null
-    */
-async function findUserByPlatformId(platform, userId) {
-    try {
-        // Формируем запрос с фильтром по email
-        const response = await fetch(`${RECORDS_ENDPOINT}?where=(${platform}-id,eq,${userId})`, {
-            method: 'GET',
-            headers: {
-                "xc-token": API_KEY,
-                "Content-Type": "application/json"
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Ошибка сервера: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log("User search response:", data); // Для отладки
-        
-        if (data.list && data.list.length > 0) {
-            const record = data.list[0];
-            
-            // Добавляем проверку для "Id" (с большой I и маленькой d)
-            const recordId = record.id || record.Id || record.ID || record.recordId;
-            
-            if (!recordId) {
-                console.error("ID записи не найден в объекте:", record);
-                throw new Error("ID записи не найден");
-            }
-            
-            return {
-                id: recordId,
-                ...record
-            };
-        }
-        
-        return null;
-    } catch (error) {
-        console.error("Ошибка при поиске пользователя:", error);
-        throw new Error("Не удалось подключиться к серверу. Пожалуйста, попробуйте позже.");
+// Поиск пользователя в NocoDB по tg-id (с учётом _VK)
+async function findUser(idFromApp) {
+    // 1. Ищем как Telegram ID
+    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${idFromApp})`, {
+        headers: { "xc-token": API_KEY }
+    });
+    let data = await res.json();
+    if (data.list?.length > 0) {
+        return { recordId: data.list[0].Id || data.list[0].id, platform: 'tg' };
     }
-}
 
-/**
-    * Обновление записи в базе NocoDB
-    * @param {string} recordId - ID записи
-    * @param {string} fieldId - ID поля для обновления
-    * @param {File} file - Файл для загрузки
-    * @returns {Promise<boolean>} - Успешно ли обновление
-    */
-async function updateRecord(recordId, fieldId, file, extraData = {}) {
-    try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('path', 'solutions');
-        
-        const uploadResponse = await fetch(FILE_UPLOAD_ENDPOINT, {
-            method: 'POST',
-            headers: { "xc-token": API_KEY },
-            body: formData
-        });
-        
-        if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text();
-            console.error("Ошибка загрузки файла:", uploadResponse.status, errorText);
-            throw new Error(`Ошибка загрузки файла: ${uploadResponse.status}`);
-        }
-        
-        let uploadData = await uploadResponse.json();
-        
-        if (!Array.isArray(uploadData)) {
-            uploadData = [uploadData];
-        }
-        
-        // ФИКС: Обновленная проверка URL
-        if (!uploadData.length || !(uploadData[0]?.url || uploadData[0]?.path)) {
-            console.error("Не получен url или path в ответе:", uploadData);
-            throw new Error("Не удалось получить информацию о файле");
-        }
-        
-        const firstItem = uploadData[0];
-        const fileName = firstItem.title || file.name;
-        const fileType = file.type;
-        const fileSize = file.size;
-        
-        // ФИКС: Получаем корректный URL
-        const fileUrl = firstItem.url 
-            ? firstItem.url 
-            : `${BASE_URL}/${firstItem.path}`;
-        
-        const getFileIcon = (mimeType) => {
-            if (mimeType.includes("pdf")) return "mdi-file-pdf-outline";
-            if (mimeType.includes("word")) return "mdi-file-word-outline";
-            if (mimeType.includes("excel") || mimeType.includes("spreadsheet")) return "mdi-file-excel-outline";
-            if (mimeType.includes("png")) return "mdi-file-image-outline";
-            return "mdi-file-outline";
-        };
-        
-        const attachmentData = [
-            {
-                mimetype: fileType,
-                size: fileSize,
-                title: fileName,
-                url: fileUrl, // ФИКС: Используем корректный URL
-                icon: getFileIcon(fileType)
-            }
-        ];
-        
-        const updateData = Object.assign(
-            {
-                Id: Number(recordId),
-                [fieldId]: attachmentData
-            },
-            extraData
-        );
-        
-        console.log("Отправка данных для обновления:", updateData);
-        
-        const updateResponse = await fetch(RECORDS_ENDPOINT, {
-            method: "PATCH",
-            headers: {
-                "xc-token": API_KEY,
-                "Content-Type": "application/json",
-                "accept": "application/json"
-            },
-            body: JSON.stringify(updateData)
-        });
-        
-        if (!updateResponse.ok) {
-            const errorText = await updateResponse.text();
-            console.error("Ошибка обновления записи:", updateResponse.status, errorText);
-            throw new Error(`Ошибка обновления записи: ${updateResponse.status}`);
-        }
-        
-        const updateResult = await updateResponse.json();
-        console.log("Результат обновления записи:", updateResult);
-        
-        return true;
-        
-    } catch (error) {
-        console.error("Ошибка при обновлении записи:", error);
-        throw new Error("Не удалось сохранить файл. Пожалуйста, попробуйте позже.");
+    // 2. Ищем как VK ID
+    const vkValue = idFromApp + "_VK";
+    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkValue})`, {
+        headers: { "xc-token": API_KEY }
+    });
+    data = await res.json();
+    if (data.list?.length > 0) {
+        return { recordId: data.list[0].Id || data.list[0].id, platform: 'vk' };
     }
-}
 
-// Функции для работы с файлами
-
-/**
-    * Валидация файла перед загрузкой
-    * @param {File} file - Файл для проверки
-    * @returns {string|null} - Сообщение об ошибке или null, если файл валиден
-    */
-function validateFile(file) {
-    if (file.size > 15 * 1024 * 1024) {
-        return "Файл слишком большой (макс. 5MB)";
-    }
-    
-    const validTypes = [
-        // Документы
-        "application/pdf", 
-        "application/msword", 
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
-        // Таблицы
-        "application/vnd.ms-excel", // XLS
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
-        "application/vnd.ms-excel.sheet.macroEnabled.12", // XLSM
-        "application/vnd.ms-excel.addin.macroEnabled.12",  // XLAM
-        // Изображения
-        "image/png",
-        "image/jpeg",
-        "image/jpg",
-        "image/gif",
-        "image/webp"
-    ];
-    
-    if (!validTypes.includes(file.type)) {
-        return "Неподдерживаемый формат файла";
-    }
-    
     return null;
 }
 
-/**
-    * Отслеживание прогресса загрузки файла
-    * @param {File} file - Файл для загрузки
-    * @param {string} progressId - ID элемента прогресса
-    * @param {string} statusId - ID элемента статуса
-    * @returns {Promise<void>}
-    */
-function trackUploadProgress(file, progressId, statusId) {
-    return new Promise((resolve) => {
-        const progress = document.getElementById(progressId);
-        const status = document.getElementById(statusId);
-        
-        status.textContent = "Подготовка к загрузке...";
-        progress.style.width = "0%";
-        
-        // Имитация прогресса для демонстрации
-        let progressValue = 0;
-        const interval = setInterval(() => {
-            progressValue += Math.random() * 15;
-            if (progressValue >= 100) {
-                progressValue = 100;
-                clearInterval(interval);
-                status.textContent = "Файл загружен!";
-                resolve();
-            } else {
-                progress.style.width = `${progressValue}%`;
-                status.textContent = `Загружено ${Math.round(progressValue)}%`;
-            }
-        }, 200);
+// Загрузка файла в NocoDB
+async function uploadFile(recordId, fieldId, file, extra = {}) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("path", "solutions");
+
+    const up = await fetch(FILE_UPLOAD_ENDPOINT, { method: "POST", headers: { "xc-token": API_KEY }, body: form });
+    if (!up.ok) throw new Error("Не удалось загрузить файл на сервер");
+
+    let info = await up.json();
+    if (!Array.isArray(info)) info = [info];
+    const url = info[0].url || `${BASE_URL}/${info[0].path}`;
+
+    const attachment = [{ title: file.name, mimetype: file.type, size: file.size, url }];
+
+    const body = { Id: Number(recordId), [fieldId]: attachment, ...extra };
+
+    const patch = await fetch(RECORDS_ENDPOINT, {
+        method: "PATCH",
+        headers: { "xc-token": API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+
+    if (!patch.ok) throw new Error("Ошибка сохранения в базу");
+}
+
+// Валидация
+function validateFile(file) {
+    if (file.size > 15 * 1024 * 1024) return "Файл больше 15 МБ";
+    const ok = ["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "image/png","image/jpeg","image/jpg","image/webp"];
+    if (!ok.includes(file.type)) return "Неподдерживаемый формат";
+    return null;
+}
+
+// Фейковый прогресс
+async function progress(barId, statusId) {
+    const bar = document.getElementById(barId);
+    const status = document.getElementById(statusId);
+    let p = 0;
+    return new Promise(res => {
+        const i = setInterval(() => {
+            p += Math.random() * 20 + 5;
+            if (p >= 100) { p = 100; clearInterval(i); status.textContent = "Готово!"; res(); }
+            bar.style.width = p + "%";
+            status.textContent = `Загрузка ${Math.round(p)}%`;
+        }, 120);
     });
 }
 
-// Функции управления интерфейсом
-
-/**
-    * Переключение между экранами приложения
-    * @param {string} toScreen - ID экрана для отображения
-    */
-function showScreen(toScreen) {
-    // Скрываем все экраны
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.classList.add("hidden");
-    });
-    
-    // Показываем только целевой экран
-    if (screens[toScreen]) {
-        screens[toScreen].classList.remove("hidden");
-    }
-}
-
-/**
-    * Отображение сообщения об ошибке
-    * @param {HTMLElement} element - Элемент для отображения ошибки
-    * @param {string} message - Текст ошибки
-    */
-function showError(element, message) {
-    element.textContent = message;
-    element.classList.remove("hidden");
-}
-
-// Обработчики событий
-
-// Обработка загрузки файлов
-
-/**
-    * Обработчик загрузки файла
-    * @param {number} fileNumber - Номер файла (1, 2 или 3)
-    * @param {string} fieldId - ID поля в базе данных
-    * @param {string} nextScreen - Следующий экран
-    */
-async function handleFileUpload(fileNumber, fieldId, nextScreen) {
-    const fileInput = document.getElementById(`fileInput${fileNumber}`);
-    const errorElement = document.getElementById(`error${fileNumber}`);
-    const file = fileInput.files[0];
-    
-    errorElement.classList.add("hidden");
-    
-    if (!file) {
-        showError(errorElement, "Выберите файл для загрузки");
-        return;
-    }
-    
-    // Валидация файла
-    const validationError = validateFile(file);
-    if (validationError) {
-        showError(errorElement, validationError);
-        return;
-    }
-    
+// Уведомление в ВК (по желанию)
+async function notifyVk() {
+    if (userPlatform !== 'vk') return;
+    const VK_TOKEN = "ВСТАВЬ_СВОЙ_СЕРВИСНЫЙ_КЛЮЧ_ЗДЕСЬ"; // ← обязательно замени
     try {
-        // Показать прогресс загрузки
-        await trackUploadProgress(
-            file, 
-            `progress${fileNumber}`, 
-            `status${fileNumber}`
-        );
-        
-        // Формируем дополнительные данные для обновления
-        let extraData = {};
-        
-        // Если это первый файл, добавляем дату загрузки
-        if (fileNumber === 1) {
-            const today = new Date();
-            // Форматируем дату в YYYY-MM-DD (ISO 8601)
-            const formattedDate = today.toISOString().split('T')[0];
-            extraData[DATE_FIELD_ID] = formattedDate;
+        await fetch("https://api.vk.com/method/messages.send", {
+            method: "POST",
+            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({
+                user_id: rawUserId,
+                random_id: Date.now(),
+                message: "Спасибо! Мы получили твоё задание. Проверим в течение 5 дней!",
+                access_token: VK_TOKEN,
+                v: "5.199"
+            })
+        });
+    } catch(e) { console.log("VK уведомление не отправлено:", e); }
+}
+
+// ==================== ЗАПУСК ====================
+document.addEventListener("DOMContentLoaded", async () => {
+    try {
+        // Получаем ID
+        if (window.Telegram?.WebApp) {
+            const tg = await waitForTelegram();
+            rawUserId = tg?.initDataUnsafe?.user?.id;
+            if (rawUserId) { tg.ready(); tg.expand(); }
+        } else if (typeof vkBridge !== 'undefined') {
+            await vkBridge.send("VKWebAppInit");
+            const info = await vkBridge.send("VKWebAppGetUserInfo");
+            rawUserId = info.id;
         }
-        
-        // Обновление записи в базе данных с дополнительными данными
-        await updateRecord(currentRecordId, fieldId, file, extraData);
-        
-        uploadedFiles[fileNumber - 1] = file;
-        
-        if (nextScreen) {
-            showScreen(nextScreen);
-        } else {
+
+        if (!rawUserId) throw new Error("Не удалось определить пользователя");
+
+        const user = await findUser(rawUserId);
+        if (!user) throw new Error("Вы не зарегистрированы. Напишите в бот");
+
+        currentRecordId = user.recordId;
+        userPlatform = user.platform;
+
+        console.log(`Успешный вход: ${userPlatform.toUpperCase()} (ID ${rawUserId})`);
+        showScreen("welcome");
+
+    } catch (e) {
+        showError(e.message || "Ошибка приложения");
+    }
+});
+
+// ==================== КНОПКИ ====================
+document.getElementById("startUpload")?.addEventListener("click", () => showScreen("upload1"));
+
+async function handleUpload(num, fieldId, nextScreen = null) {
+    const input = document.getElementById(`fileInput${num}`);
+    const errEl = document.getElementById(`error${num}`);
+    const file = input.files[0];
+
+    errEl.classList.add("hidden");
+    if (!file) return errEl.textContent = "Выберите файл", errEl.classList.remove("hidden");
+
+    const err = validateFile(file);
+    if (err) return errEl.textContent = err, errEl.classList.remove("hidden");
+
+    try {
+        await progress(`progress${num}`, `status${num}`);
+
+        const extra = (num === 1) ? { [DATE_FIELD_ID]: new Date().toISOString().split('T')[0] } : {};
+
+        await uploadFile(currentRecordId, fieldId, file, extra);
+
+        if (nextScreen) showScreen(nextScreen);
+        else {
             showScreen("result");
+            notifyVk(); // ← отправит сообщение только VK-пользователям
         }
-    } catch (error) {
-        showError(errorElement, error.message);
+    } catch (e) {
+        errEl.textContent = e.message || "Ошибка загрузки";
+        errEl.classList.remove("hidden");
     }
 }
 
-// Назначение обработчиков для кнопок загрузки файлов
-document.getElementById("startUpload").addEventListener("click", () => {
-    showScreen("upload1");
-});
+document.getElementById("submitFile1")?.addEventListener("click", () => handleUpload(1, SOLUTION_FIELDS.solution1, "upload2"));
+document.getElementById("submitFile2")?.addEventListener("click", () => handleUpload(2, SOLUTION_FIELDS.solution2, "upload3"));
+document.getElementById("submitFile3")?.addEventListener("click", () => handleUpload(3, SOLUTION_FIELDS.solution3));
 
-document.getElementById("submitFile1").addEventListener("click", () => {
-    handleFileUpload(1, SOLUTION_FIELDS.solution1, "upload2");
-});
+document.getElementById("skipFile2")?.addEventListener("click", () => { showScreen("result"); notifyVk(); });
+document.getElementById("skipFile3")?.addEventListener("click", () => { showScreen("result"); notifyVk(); });
 
-document.getElementById("submitFile2").addEventListener("click", () => {
-    handleFileUpload(2, SOLUTION_FIELDS.solution2, "upload3");
-});
-
-document.getElementById("submitFile3").addEventListener("click", () => {
-    handleFileUpload(3, SOLUTION_FIELDS.solution3);
-});
-
-// Обработка пропуска загрузки
-document.getElementById("skipFile2").addEventListener("click", () => {
-    showScreen("result");
-});
-
-document.getElementById("skipFile3").addEventListener("click", () => {
-    showScreen("result");
-});
-
-// Закрытие приложения
-document.getElementById("closeApp").addEventListener("click", () => {
-    tg.close();
+// Кнопка «Закрыть приложение» в твоём HTML имеет id="closeApp"
+document.getElementById("closeApp")?.addEventListener("click", () => {
+    if (userPlatform === 'vk' && typeof vkBridge !== 'undefined') {
+        vkBridge.send("VKWebAppClose", {status: "success"});
+    } else if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.close();
+    }
 });
