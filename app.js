@@ -50,52 +50,61 @@ function getTelegramUserId() {
 
 
 document.addEventListener("DOMContentLoaded", async () => {
-  let userId;
-  let startParam;
-  let platform;
+  let userId = null;
+  let platform = null;
 
-  if (window.Telegram && Telegram.WebApp) {
-    platform = 'tg';
-    window.platform = platform;
-    Telegram.WebApp.ready();
-    userId = getTelegramUserId();
-    startParam = Telegram.WebApp.initDataUnsafe?.start_param;
-    console.log("tg-id:", userId);
-    window.tgUserId = userId;
-    window.tgUserStartParam = startParam;
-  } else if (typeof vkBridge !== 'undefined') {
+  // Сначала проверяем VK — у него есть vkBridge
+  if (typeof vkBridge !== 'undefined' && window.location.href.includes('vk.com')) {
     platform = 'vk';
     window.platform = platform;
+
     try {
       await vkBridge.send('VKWebAppInit');
-      console.log('VK Mini App initialized');
       const u = await vkBridge.send('VKWebAppGetUserInfo');
       userId = u.id;
-      console.log("vk-id:", userId);
       window.vkUserId = userId;
+      console.log("vk-id:", userId);
     } catch (err) {
       console.error('VK init error:', err);
-      showErrorScreen('Ошибка инициализации VK: ' + err.message);
+      showErrorScreen('Ошибка VK: ' + err.message);
       return;
     }
-  } else {
-    showErrorScreen('Платформа не поддерживается');
+  }
+  // Потом Telegram — только если VK не определился
+  else if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    platform = 'tg';
+    window.platform = platform;
+
+    userId = tg.initDataUnsafe.user.id;
+    window.tgUserId = userId;
+    console.log("tg-id:", userId);
+  }
+
+  // Если ни одна платформа не дала ID
+  if (!userId || !platform) {
+    showErrorScreen('Не удалось определить платформу или пользователя');
     return;
   }
 
+  // Дальше всё как было
   try {
     const userRecord = await findUserByPlatformId(platform, userId);
 
     if (!userRecord) {
-      showErrorScreen("Напишите нам в боте и мы вам поможем");
+      showErrorScreen("Пользователь не найден в базе. Напишите нам в боте @…");
       return;
     }
 
-    currentRecordId = userRecord.id;
+    currentRecordId = userRecord.id || userRecord.Id;
     showScreen("welcome");
 
   } catch (error) {
-    showErrorScreen(error.message);
+    console.error(error);
+    showErrorScreen('Ошибка сервера: ' + error.message);
   }
 });
 
