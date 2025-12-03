@@ -49,7 +49,7 @@ async function findUser(id) {
     if (data.list?.length > 0) return { recordId: data.list[0].Id || data.list[0].id, platform: 'tg' };
 
     const vk = id + "_VK";
-    res = await fetch(`${RECORDS_ENDPOINT + `?where=(tg-id,eq,${vk})`, { headers: { "xc-token": API_KEY } });
+    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vk})`, { headers: { "xc-token": API_KEY } });
     data = await res.json();
     if (data.list?.length > 0) return { recordId: data.list[0].Id || data.list[0].id, platform: 'vk' };
 
