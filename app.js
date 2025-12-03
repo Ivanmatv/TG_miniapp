@@ -10,7 +10,7 @@ const SOLUTION_FIELDS = {
     solution2: "cd4uozpxqsupg9y",
     solution3: "c9d7t4372ag9rl8"
 };
-const DATE_FIELD_ID = "ceasp9wcrd0ch0m";
+const DATE_FIELD_ID = "ckg3vnwv4h6wg9a";
 
 let currentRecordId = null;
 let userPlatform = null;
