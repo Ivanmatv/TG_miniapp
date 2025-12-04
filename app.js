@@ -52,16 +52,51 @@ async function waitForVkBridge() {
 }
 
 // Поиск пользователя в NocoDB
+// Поиск пользователя в NocoDB (исправленная версия)
 async function findUser(id) {
-    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, { headers: { "xc-token": API_KEY } });
+    console.log("Ищу пользователя с ID:", id);
+    
+    // Ищем по Telegram ID (число)
+    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, { 
+        headers: { "xc-token": API_KEY } 
+    });
     let data = await res.json();
-    if (data.list?.length > 0) return { recordId: data.list[0].Id || data.list[0].id, platform: 'tg' };
+    console.log("Результат поиска по Telegram ID:", data);
+    
+    if (data.list?.length > 0) {
+        const recordId = data.list[0].Id || data.list[0].id;
+        console.log("Найдена запись по Telegram ID:", recordId);
+        return { recordId: recordId, platform: 'tg' };
+    }
 
+    // Ищем по VK ID (с суффиксом _VK)
     const vkVal = id + "_VK";
-    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkVal})`, { headers: { "xc-token": API_KEY } });
+    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkVal})`, { 
+        headers: { "xc-token": API_KEY } 
+    });
     data = await res.json();
-    if (data.list?.length > 0) return { recordId: data.list[0].Id || data.list[0].id, platform: 'vk' };
+    console.log("Результат поиска по VK ID:", data);
+    
+    if (data.list?.length > 0) {
+        const recordId = data.list[0].Id || data.list[0].id;
+        console.log("Найдена запись по VK ID:", recordId);
+        return { recordId: recordId, platform: 'vk' };
+    }
 
+    // Дополнительно: ищем по VK ID без суффикса (если в базе хранится просто число)
+    res = await fetch(`${RECORDS_ENDPOINT}?where=(vk-id,eq,${id})`, { 
+        headers: { "xc-token": API_KEY } 
+    });
+    data = await res.json();
+    console.log("Результат поиска по vk-id:", data);
+    
+    if (data.list?.length > 0) {
+        const recordId = data.list[0].Id || data.list[0].id;
+        console.log("Найдена запись по vk-id:", recordId);
+        return { recordId: recordId, platform: 'vk' };
+    }
+
+    console.log("Пользователь не найден в базе данных");
     return null;
 }
 
