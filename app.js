@@ -54,49 +54,32 @@ async function waitForVkBridge() {
 // Поиск пользователя в NocoDB
 // Поиск пользователя в NocoDB (исправленная версия)
 async function findUser(id) {
-    console.log("Ищу пользователя с ID:", id);
-    
-    // Ищем по Telegram ID (число)
-    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, { 
-        headers: { "xc-token": API_KEY } 
-    });
+    console.log("Ищем пользователя с ID:", id); // ← Твой rawUserId
+
+    // TG поиск
+    const tgWhere = `(tg-id,eq,${id})`;
+    console.log("TG запрос:", `${RECORDS_ENDPOINT}?where=${tgWhere}`);
+    let res = await fetch(`${RECORDS_ENDPOINT}?where=${tgWhere}`, { headers: { "xc-token": API_KEY } });
     let data = await res.json();
-    console.log("Результат поиска по Telegram ID:", data);
-    
+    console.log("TG ответ от сервера:", data); // ← Ключ: смотри list и ошибки
     if (data.list?.length > 0) {
-        const recordId = data.list[0].Id || data.list[0].id;
-        console.log("Найдена запись по Telegram ID:", recordId);
-        return { recordId: recordId, platform: 'tg' };
+        console.log("Найден TG пользователь:", data.list[0]);
+        return { recordId: data.list[0].Id || data.list[0].id, platform: 'tg' };
     }
 
-    // Ищем по VK ID (с суффиксом _VK)
+    // VK поиск
     const vkVal = id + "_VK";
-    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkVal})`, { 
-        headers: { "xc-token": API_KEY } 
-    });
+    const vkWhere = `(tg-id,eq,${vkVal})`;
+    console.log("VK запрос:", `${RECORDS_ENDPOINT}?where=${vkWhere}`);
+    res = await fetch(`${RECORDS_ENDPOINT}?where=${vkWhere}`, { headers: { "xc-token": API_KEY } });
     data = await res.json();
-    console.log("Результат поиска по VK ID:", data);
-    
+    console.log("VK ответ от сервера:", data); // ← Сравни с TG
     if (data.list?.length > 0) {
-        const recordId = data.list[0].Id || data.list[0].id;
-        console.log("Найдена запись по VK ID:", recordId);
-        return { recordId: recordId, platform: 'vk' };
+        console.log("Найден VK пользователь:", data.list[0]);
+        return { recordId: data.list[0].Id || data.list[0].id, platform: 'vk' };
     }
 
-    // Дополнительно: ищем по VK ID без суффикса (если в базе хранится просто число)
-    res = await fetch(`${RECORDS_ENDPOINT}?where=(vk-id,eq,${id})`, { 
-        headers: { "xc-token": API_KEY } 
-    });
-    data = await res.json();
-    console.log("Результат поиска по vk-id:", data);
-    
-    if (data.list?.length > 0) {
-        const recordId = data.list[0].Id || data.list[0].id;
-        console.log("Найдена запись по vk-id:", recordId);
-        return { recordId: recordId, platform: 'vk' };
-    }
-
-    console.log("Пользователь не найден в базе данных");
+    console.log("Пользователь НЕ НАЙДЕН в базе");
     return null;
 }
 
