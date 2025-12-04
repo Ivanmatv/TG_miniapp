@@ -53,31 +53,38 @@ async function waitForVkBridge() {
 
 // === ПОЧИНЕННАЯ ФУНКЦИЯ ПОИСКА (главное изменение!) ===
 async function findUser(rawId) {
-    const userId = Number(rawId);                     // ← Приводим к чистому числу
-    if (!userId || isNaN(userId)) return null;
+    const userId = Number(rawId);
+    if (!userId || isNaN(userId)) {
+        console.log("Некорректный ID пользователя:", rawId);
+        return null;
+    }
 
-    // 1. Ищем как Telegram (чистый ID)
-    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${userId})&limit=1`, {
-        headers: { "xc-token": API_KEY }
-    });
+    // 1. Ищем как Telegram (чистый ID в колонке clqmvd04l5wmzyl)
+    let res = await fetch(
+        `${RECORDS_ENDPOINT}?where=(clqmvd04l5wmzyl,eq,${userId})&limit=1`,
+        { headers: { "xc-token": API_KEY } }
+    );
     let data = await res.json();
     if (data.list?.length > 0) {
+        console.log("Найден TG пользователь, recordId:", data.list[0].Id || data.list[0].id);
         return { recordId: data.list[0].Id || data.list[0].id, platform: 'tg' };
     }
 
     // 2. Ищем как VK (с суффиксом _VK)
-    const vkValue = userId + "_VK";
-    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkValue})&limit=1`, {
-        headers: { "xc-token": API_KEY }
-    });
+    const vkValue = `${userId}_VK`;
+    res = await fetch(
+        `${RECORDS_ENDPOINT}?where=(clqmvd04l5wmzyl,eq,${vkValue})&limit=1`,
+        { headers: { "xc-token": API_KEY } }
+    );
     data = await res.json();
     if (data.list?.length > 0) {
+        console.log("Найден VK пользователь, recordId:", data.list[0].Id || data.list[0].id);
         return { recordId: data.list[0].Id || data.list[0].id, platform: 'vk' };
     }
 
+    console.log("Пользователь не найден даже по BT ID колонки");
     return null;
 }
-// =============================================
 
 // Загрузка файла (уже правильная)
 async function uploadFile(recordId, fieldId, file, extra = {}) {
