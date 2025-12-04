@@ -80,48 +80,82 @@ async function findUser(rawId) {
 }
 
 // РАБОЧАЯ загрузка файла для ndb.fut.ru (PATCH с Id в теле)
+// Загрузка файла (исправленная версия для NocoDB v2)
 async function uploadFile(recordId, fieldId, file, extra = {}) {
+    // ПРОВЕРКА: recordId не должен быть null
+    if (!recordId) {
+        throw new Error("Не удалось определить запись пользователя");
+    }
+
+    console.log(`Начинаю загрузку файла ${file.name} для записи ${recordId}`);
+    
+    // 1. Загружаем файл в хранилище
     const form = new FormData();
     form.append("file", file);
     form.append("path", "solutions");
 
-    const up = await fetch(FILE_UPLOAD_ENDPOINT, {
-        method: "POST",
-        headers: { "xc-token": API_KEY },
-        body: form
+    console.log("Загружаю файл в хранилище...");
+    const uploadResponse = await fetch(FILE_UPLOAD_ENDPOINT, { 
+        method: "POST", 
+        headers: { "xc-token": API_KEY }, 
+        body: form 
     });
+    
+    if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error("Ошибка загрузки файла в хранилище:", errorText);
+        throw new Error("Не удалось загрузить файл на сервер");
+    }
 
-    if (!up.ok) throw new Error("Не удалось загрузить файл на сервер");
+    const uploadData = await uploadResponse.json();
+    const fileUrl = Array.isArray(uploadData) 
+        ? (uploadData[0].url || `${BASE_URL}/${uploadData[0].path}`) 
+        : uploadData.url;
+    
+    console.log("Файл загружен в хранилище:", fileUrl);
 
-    const info = await up.json();
-    const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
-
-    const fileData = [{
-        title: file.name,
-        url: url,
-        mimetype: file.type || "application/octet-stream",
-        size: file.size
-    }];
-
-    const body = {
-        Id: Number(recordId),     // ← КЛЮЧЕВОЕ: Id с большой буквы и число!
-        [fieldId]: fileData,
-        ...extra
+    // 2. Обновляем запись в таблице (NocoDB v2 формат)
+    const updateBody = { 
+        Id: Number(recordId), // Ключевое изменение: Id передается в теле
+        [fieldId]: [{ 
+            title: file.name, 
+            url: fileUrl, 
+            mimetype: file.type, 
+            size: file.size 
+        }], 
+        ...extra 
     };
 
-    const patch = await fetch(RECORDS_ENDPOINT, {  // ← без /recordId в конце!
-        method: "PATCH",
-        headers: {
-            "xc-token": API_KEY,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-    });
+    console.log("Отправляю PATCH запрос на:", RECORDS_ENDPOINT);
+    console.log("Тело запроса:", JSON.stringify(updateBody, null, 2));
 
-    if (!patch.ok) {
-        const err = await patch.text();
-        throw new Error("Ошибка сохранения в базу: " + err);
+    const updateResponse = await fetch(RECORDS_ENDPOINT, { // Без /recordId в URL
+        method: "PATCH",
+        headers: { 
+            "xc-token": API_KEY, 
+            "Content-Type": "application/json" 
+        },
+        body: JSON.stringify(updateBody)
+    });
+    
+    if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        console.error("Ошибка обновления записи:", errorText);
+        
+        // Пробуем получить больше информации об ошибке
+        try {
+            const errorJson = JSON.parse(errorText);
+            console.error("Детали ошибки:", errorJson);
+        } catch (e) {
+            // Не JSON ответ
+        }
+        
+        throw new Error(`Ошибка сохранения файла в базу данных (${updateResponse.status})`);
     }
+    
+    const updateResult = await updateResponse.json();
+    console.log("✅ Запись успешно обновлена!");
+    return updateResult;
 }
 
 // Прогресс-бар (красивый фейк)
