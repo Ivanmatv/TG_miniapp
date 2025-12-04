@@ -53,62 +53,72 @@ async function waitForVkBridge() {
 
 // Поиск пользователя в NocoDB
 async function findUser(id) {
-    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, { headers: { "xc-token": API_KEY } });
+    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, { 
+        headers: { "xc-token": API_KEY } 
+    });
     let data = await res.json();
-    if (data.list?.length > 0) return { recordId: data.list[0].Id || data.list[0].id, platform: 'tg' };
+    if (data.list?.length > 0) {
+        return { 
+            recordId: data.list[0].NcRecordId,   // ← NcRecordId!
+            platform: 'tg' 
+        };
+    }
 
     const vkVal = id + "_VK";
-    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkVal})`, { headers: { "xc-token": API_KEY } });
+    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkVal})`, { 
+        headers: { "xc-token": API_KEY } 
+    });
     data = await res.json();
-    if (data.list?.length > 0) return { recordId: data.list[0].Id || data.list[0].id, platform: 'vk' };
+    if (data.list?.length > 0) {
+        return { 
+            recordId: data.list[0].NcRecordId,   // ← и тут тоже
+            platform: 'vk' 
+        };
+    }
 
     return null;
 }
 
-// ВАРИАНТ A — обновление по конкретному recordId (рекомендую)
-// Загрузка файла (исправленная версия)
 async function uploadFile(recordId, fieldId, file, extra = {}) {
+    // 1. Загружаем файл
     const form = new FormData();
     form.append("file", file);
     form.append("path", "solutions");
 
-    const up = await fetch(FILE_UPLOAD_ENDPOINT, { 
-        method: "POST", 
-        headers: { "xc-token": API_KEY }, 
-        body: form 
+    const up = await fetch(FILE_UPLOAD_ENDPOINT, {
+        method: "POST",
+        headers: { "xc-token": API_KEY },
+        body: form
     });
-    
+
     if (!up.ok) throw new Error("Не удалось загрузить файл");
 
     const info = await up.json();
-    const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
+    const url = Array.isArray(info) ? info[0].url || `${BASE_URL}/${info[0].path}` : info.url;
 
-    // Используйте правильный эндпоинт для обновления конкретной записи
-    const UPDATE_ENDPOINT = `${RECORDS_ENDPOINT}/${recordId}`;
-    
-    const body = { 
-        [fieldId]: [{ 
-            title: file.name, 
-            url, 
-            mimetype: file.type, 
-            size: file.size 
-        }], 
-        ...extra 
+    const fileObj = {
+        title: file.name,
+        url: url,
+        mimetype: file.type || "application/octet-stream",
+        size: file.size
     };
 
-    const patch = await fetch(UPDATE_ENDPOINT, {
+    // 2. Обновляем запись по NcRecordId
+    const patch = await fetch(`${RECORDS_ENDPOINT}/${recordId}`, {
         method: "PATCH",
-        headers: { 
-            "xc-token": API_KEY, 
-            "Content-Type": "application/json" 
+        headers: {
+            "xc-token": API_KEY,
+            "Content-Type": "application/json"
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+            ...extra,
+            [fieldId]: [fileObj]   // Attachment-поле всегда массив
+        })
     });
-    
+
     if (!patch.ok) {
-        const errorText = await patch.text();
-        console.error("Ошибка сохранения:", patch.status, errorText);
-        throw new Error(`Ошибка сохранения: ${patch.status}`);
+        const err = await patch.text();
+        throw new Error("Ошибка сохранения: " + err);
     }
 }
 
