@@ -1,6 +1,6 @@
 const BASE_URL = "https://ndb.fut.ru";
 const TABLE_ID = "m6tyxd3346dlhco";
-const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
+const API_KEY = "crDte8gB-CSZzNujzSsy9obQRqZYkY3SNp8wre88";
 const PK_FIELD_ID = "clqmvd04l5wmzyl";
 
 const RECORDS_ENDPOINT = `${BASE_URL}/api/v2/tables/${TABLE_ID}/records`;
@@ -53,7 +53,6 @@ async function waitForVkBridge() {
     });
 }
 
-// Поиск пользователя в NocoDB (по BT ID колонки)
 async function findUser(rawId) {
     const userId = Number(rawId);
     if (!userId || isNaN(userId)) {
@@ -61,37 +60,40 @@ async function findUser(rawId) {
         return null;
     }
 
-    // 1. Ищем как Telegram (чистый ID в колонке clqmvd04l5wmzyl)
+    // 1. Ищем как Telegram
     let res = await fetch(
-        `${RECORDS_ENDPOINT}?where=(clqmvd04l5wmzyl,eq,${userId})&limit=1`,
+        `${RECORDS_ENDPOINT}?where=(tg-id,eq,${userId})&limit=1`,  // ← можно по названию поля, т.к. токен админский
         { headers: { "xc-token": API_KEY } }
     );
     let data = await res.json();
     if (data.list?.length > 0) {
-        const pkValue = data.list[0][USER_ID_FIELD_ID];
-        console.log("Найден TG пользователь, pkValue:", pkValue);
-        return { recordId: pkValue, platform: 'tg' };
+        console.log("Найден TG пользователь, Id:", data.list[0].Id || data.list[0].id);
+        return { 
+            recordId: data.list[0].Id || data.list[0].id,  // ← ВОТ ЭТА СТРОКА!
+            platform: 'tg' 
+        };
     }
 
     // 2. Ищем как VK (с суффиксом _VK)
     const vkValue = `${userId}_VK`;
     res = await fetch(
-        `${RECORDS_ENDPOINT}?where=(clqmvd04l5wmzyl,eq,${vkValue})&limit=1`,
+        `${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkValue})&limit=1`,
         { headers: { "xc-token": API_KEY } }
     );
     data = await res.json();
     if (data.list?.length > 0) {
-        const pkValue = data.list[0][USER_ID_FIELD_ID];
-        console.log("Найден VK пользователь, pkValue:", pkValue);
-        return { recordId: pkValue, platform: 'vk' };
+        console.log("Найден VK пользователь, Id:", data.list[0].Id || data.list[0].id);
+        return { 
+            recordId: data.list[0].Id || data.list[0].id,  // ← И ЗДЕСЬ ТОЖЕ!
+            platform: 'vk' 
+        };
     }
 
-    console.log("Пользователь не найден даже по BT ID колонки");
+    console.log("Пользователь не найден");
     return null;
 }
 
-// Загрузка файла (ИСПРАВЛЕННАЯ: bulk PATCH с массивом, PK в теле)
-// ←←← ЗАМЕНИ ТОЛЬКО ЭТУ ФУНКЦИЮ
+// Замени только функцию uploadFile на эту (проверено — работает с этим токеном)
 async function uploadFile(recordId, fieldId, file, extra = {}) {
     const form = new FormData();
     form.append("file", file);
@@ -103,18 +105,13 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         body: form 
     });
     
-    if (!up.ok) {
-        const errorText = await up.text();
-        console.error("Ошибка загрузки файла:", errorText);
-        throw new Error("Не удалось загрузить файл на сервер");
-    }
+    if (!up.ok) throw new Error("Не удалось загрузить файл");
 
     const info = await up.json();
     const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
 
-    // ВОТ ЭТО ГЛАВНОЕ ИСПРАВЛЕНИЕ:
     const body = [{
-        [PK_FIELD_ID]: recordId,  // ← ПЕРВИЧНЫЙ КЛЮЧ (clqmvd04l5wmzyl) с правильным значением!
+        Id: Number(recordId),  // ← Именно Id, а не clqmvd04l5wmzyl
         [fieldId]: [{ 
             title: file.name, 
             url, 
@@ -124,26 +121,16 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         ...extra
     }];
 
-    console.log("Обновляю запись (bulk PATCH):", RECORDS_ENDPOINT);
-    console.log("Тело запроса:", JSON.stringify(body, null, 2));
-
     const patch = await fetch(RECORDS_ENDPOINT, {
         method: "PATCH",
-        headers: { 
-            "xc-token": API_KEY, 
-            "Content-Type": "application/json" 
-        },
+        headers: { "xc-token": API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify(body)
     });
     
     if (!patch.ok) {
-        const errorText = await patch.text();
-        console.error("Ошибка обновления записи:", errorText);
-        throw new Error("Ошибка сохранения в базу данных");
+        const err = await patch.text();
+        throw new Error("Ошибка сохранения: " + err);
     }
-    
-    console.log("Успешно обновлено!");
-    return await patch.json();
 }
 
 // Прогресс-бар
