@@ -1,6 +1,6 @@
 const BASE_URL = "https://ndb.fut.ru";
 const TABLE_ID = "m6tyxd3346dlhco";
-const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
+const API_KEY = "crDte8gB-CSZzNujzSsy9obQRqZYkY3SNp8wre88";
 
 const RECORDS_ENDPOINT = `${BASE_URL}/api/v2/tables/${TABLE_ID}/records`;
 const FILE_UPLOAD_ENDPOINT = `${BASE_URL}/api/v2/storage/upload`;
