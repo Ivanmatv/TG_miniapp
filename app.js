@@ -1,6 +1,7 @@
 const BASE_URL = "https://ndb.fut.ru";
 const TABLE_ID = "m6tyxd3346dlhco";
 const API_KEY = "N0eYiucuiiwSGIvPK5uIcOasZc_nJy6mBUihgaYQ";
+const PK_FIELD_ID = "clqmvd04l5wmzyl";
 
 const RECORDS_ENDPOINT = `${BASE_URL}/api/v2/tables/${TABLE_ID}/records`;
 const FILE_UPLOAD_ENDPOINT = `${BASE_URL}/api/v2/storage/upload`;
@@ -90,6 +91,7 @@ async function findUser(rawId) {
 }
 
 // Загрузка файла (ИСПРАВЛЕННАЯ: bulk PATCH с массивом, PK в теле)
+// ←←← ЗАМЕНИ ТОЛЬКО ЭТУ ФУНКЦИЮ
 async function uploadFile(recordId, fieldId, file, extra = {}) {
     const form = new FormData();
     form.append("file", file);
@@ -110,20 +112,20 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
     const info = await up.json();
     const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
 
-    // Тело как массив с одним объектом (bulk для single update)
+    // ВОТ ЭТО ГЛАВНОЕ ИСПРАВЛЕНИЕ:
     const body = [{
-        [USER_ID_FIELD_ID]: recordId,  // ← PK field BT ID with its value!
+        [PK_FIELD_ID]: recordId,  // ← ПЕРВИЧНЫЙ КЛЮЧ (clqmvd04l5wmzyl) с правильным значением!
         [fieldId]: [{ 
             title: file.name, 
             url, 
             mimetype: file.type, 
             size: file.size 
         }],
-        ...extra 
+        ...extra
     }];
 
-    console.log("Обновляю запись:", RECORDS_ENDPOINT);
-    console.log("Тело запроса:", body);
+    console.log("Обновляю запись (bulk PATCH):", RECORDS_ENDPOINT);
+    console.log("Тело запроса:", JSON.stringify(body, null, 2));
 
     const patch = await fetch(RECORDS_ENDPOINT, {
         method: "PATCH",
@@ -140,8 +142,8 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         throw new Error("Ошибка сохранения в базу данных");
     }
     
-    const result = await patch.json();
-    return result;
+    console.log("Успешно обновлено!");
+    return await patch.json();
 }
 
 // Прогресс-бар
