@@ -91,29 +91,34 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         body: form
     });
 
-    if (!up.ok) throw new Error("Не удалось загрузить файл");
+    if (!up.ok) {
+        const text = await up.text();
+        throw new Error("Не удалось загрузить файл: " + up.status + " " + text);
+    }
 
     const info = await up.json();
-    const url = Array.isArray(info) ? info[0].url || `${BASE_URL}/${info[0].path}` : info.url;
+    const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
 
     const fileObj = {
         title: file.name,
         url: url,
-        mimetype: file.type || "application/octet-stream",
+        mimetype: file.type || "application/octetet-stream",
         size: file.size
     };
 
-    // 2. Обновляем запись по NcRecordId
-    const patch = await fetch(RECORDS_ENDPOINT, {
+    // 2. Обновляем запись через BULK PATCH — работает ВЕЗДЕ в 2024–2025
+    const patch = await fetch(`${RECORDS_ENDPOINT}/bulk`, {
         method: "PATCH",
         headers: {
             "xc-token": API_KEY,
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            Id: recordId,
-            ...extra,
-            [fieldId]: [fileObj]
+            ids: [recordId],                    // ← массив ID
+            data: {
+                ...extra,
+                [fieldId]: [fileObj]            // ← прикрепляем файл
+            }
         })
     });
 
@@ -121,6 +126,8 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         const err = await patch.text();
         throw new Error("Ошибка сохранения: " + err);
     }
+
+    console.log("Файл успешно прикреплён!");
 }
 
 // Прогресс-бар
