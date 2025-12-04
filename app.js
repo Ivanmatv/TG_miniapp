@@ -65,26 +65,51 @@ async function findUser(id) {
     return null;
 }
 
-// Загрузка файла (короткая рабочая версия)
+// ВАРИАНТ A — обновление по конкретному recordId (рекомендую)
+// Загрузка файла (исправленная версия)
 async function uploadFile(recordId, fieldId, file, extra = {}) {
     const form = new FormData();
     form.append("file", file);
     form.append("path", "solutions");
 
-    const up = await fetch(FILE_UPLOAD_ENDPOINT, { method: "POST", headers: { "xc-token": API_KEY }, body: form });
+    const up = await fetch(FILE_UPLOAD_ENDPOINT, { 
+        method: "POST", 
+        headers: { "xc-token": API_KEY }, 
+        body: form 
+    });
+    
     if (!up.ok) throw new Error("Не удалось загрузить файл");
 
     const info = await up.json();
     const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
 
-    const body = { Id: Number(recordId), [fieldId]: [{ title: file.name, url, mimetype: file.type, size: file.size }], ...extra };
+    // Используйте правильный эндпоинт для обновления конкретной записи
+    const UPDATE_ENDPOINT = `${RECORDS_ENDPOINT}/${recordId}`;
+    
+    const body = { 
+        [fieldId]: [{ 
+            title: file.name, 
+            url, 
+            mimetype: file.type, 
+            size: file.size 
+        }], 
+        ...extra 
+    };
 
-    const patch = await fetch(RECORDS_ENDPOINT, {
+    const patch = await fetch(UPDATE_ENDPOINT, {
         method: "PATCH",
-        headers: { "xc-token": API_KEY, "Content-Type": "application/json" },
+        headers: { 
+            "xc-token": API_KEY, 
+            "Content-Type": "application/json" 
+        },
         body: JSON.stringify(body)
     });
-    if (!patch.ok) throw new Error("Ошибка сохранения");
+    
+    if (!patch.ok) {
+        const errorText = await patch.text();
+        console.error("Ошибка сохранения:", patch.status, errorText);
+        throw new Error(`Ошибка сохранения: ${patch.status}`);
+    }
 }
 
 // Прогресс-бар
