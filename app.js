@@ -65,7 +65,7 @@ async function findUser(id) {
     return null;
 }
 
-// Загрузка файла (короткая рабочая версия)
+// Загрузка файла
 async function uploadFile(recordId, fieldId, file, extra = {}) {
     const form = new FormData();
     form.append("file", file);
@@ -77,9 +77,13 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
     const info = await up.json();
     const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
 
-    const body = { Id: Number(recordId), [fieldId]: [{ title: file.name, url, mimetype: file.type, size: file.size }], ...extra };
+    // Изменено: endpoint с /${recordId}, body без Id
+    const body = { 
+        [fieldId]: [{ title: file.name, url, mimetype: file.type, size: file.size }], 
+        ...extra 
+    };
 
-    const patch = await fetch(RECORDS_ENDPOINT, {
+    const patch = await fetch(`${RECORDS_ENDPOINT}/${recordId}`, {
         method: "PATCH",
         headers: { "xc-token": API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify(body)
