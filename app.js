@@ -56,41 +56,35 @@ async function waitForVkBridge() {
 
 async function findUser(rawId) {
     const userId = Number(rawId);
-    if (!userId || isNaN(userId)) {
-        console.log("Некорректный ID пользователя:", rawId);
-        return null;
-    }
+    if (!userId || isNaN(userId)) return null;
 
-    // 1. Ищем как Telegram
+    const PK_FIELD = "clqmvd04l5wmzyl";  // ← Primary Key
+
+    // 1. Ищем Telegram
     let res = await fetch(
-        `${RECORDS_ENDPOINT}?where=(tg-id,eq,${userId})&limit=1`,  // ← можно по названию поля, т.к. токен админский
+        `${RECORDS_ENDPOINT}?where=(${PK_FIELD},eq,${userId})&limit=1`,
         { headers: { "xc-token": API_KEY } }
     );
     let data = await res.json();
     if (data.list?.length > 0) {
-        console.log("Найден TG пользователь, Id:", data.list[0].Id || data.list[0].id);
-        return { 
-            recordId: data.list[0].Id || data.list[0].id,  // ← ВОТ ЭТА СТРОКА!
-            platform: 'tg' 
-        };
+        const pkValue = data.list[0][PK_FIELD];  // ← Вот правильное значение PK!
+        console.log("Найден TG пользователь, PK =", pkValue);
+        return { recordId: pkValue, platform: 'tg' };
     }
 
-    // 2. Ищем как VK (с суффиксом _VK)
+    // 2. Ищем VK
     const vkValue = `${userId}_VK`;
     res = await fetch(
-        `${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkValue})&limit=1`,
+        `${RECORDS_ENDPOINT}?where=(${PK_FIELD},eq,${vkValue})&limit=1`,
         { headers: { "xc-token": API_KEY } }
     );
     data = await res.json();
     if (data.list?.length > 0) {
-        console.log("Найден VK пользователь, Id:", data.list[0].Id || data.list[0].id);
-        return { 
-            recordId: data.list[0].Id || data.list[0].id,  // ← И ЗДЕСЬ ТОЖЕ!
-            platform: 'vk' 
-        };
+        const pkValue = data.list[0][PK_FIELD];
+        console.log("Найден VK пользователь, PK =", pkValue);
+        return { recordId: pkValue, platform: 'vk' };
     }
 
-    console.log("Пользователь не найден");
     return null;
 }
 
