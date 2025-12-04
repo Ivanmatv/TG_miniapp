@@ -59,7 +59,7 @@ async function findUser(id) {
     let data = await res.json();
     if (data.list?.length > 0) {
         return { 
-            recordId: data.list[0].NcRecordId,   // ← NcRecordId!
+            recordId: data.list[0].Id,   // ← Именно Id, а не NcRecordId!
             platform: 'tg' 
         };
     }
@@ -71,7 +71,7 @@ async function findUser(id) {
     data = await res.json();
     if (data.list?.length > 0) {
         return { 
-            recordId: data.list[0].NcRecordId,   // ← и тут тоже
+            recordId: data.list[0].Id,   // ← и тут тоже Id
             platform: 'vk' 
         };
     }
@@ -104,7 +104,7 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
     };
 
     // 2. Обновляем запись по NcRecordId
-    const patch = await fetch(`${RECORDS_ENDPOINT}/${recordId}`, {
+    const patch = await fetch(`${RECORDS_ENDPOINT}/${recordId}`, {  // ← оставляем как есть
         method: "PATCH",
         headers: {
             "xc-token": API_KEY,
@@ -112,7 +112,7 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         },
         body: JSON.stringify({
             ...extra,
-            [fieldId]: [fileObj]   // Attachment-поле всегда массив
+            [fieldId]: [fileObj]
         })
     });
 
