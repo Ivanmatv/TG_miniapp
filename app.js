@@ -141,7 +141,6 @@ async function showProgress(barId, statusId) {
 
 // ======================= ЗАПУСК =======================
 (async () => {
-    () => {
     try {
         const bridge = await waitForVkBridge();
 
