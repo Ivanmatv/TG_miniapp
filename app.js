@@ -104,13 +104,14 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
     };
 
     // 2. Обновляем запись по NcRecordId
-    const patch = await fetch(`${RECORDS_ENDPOINT}/${recordId}`, {  // ← оставляем как есть
+    const patch = await fetch(RECORDS_ENDPOINT, {
         method: "PATCH",
         headers: {
             "xc-token": API_KEY,
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
+            Id: recordId,
             ...extra,
             [fieldId]: [fileObj]
         })
