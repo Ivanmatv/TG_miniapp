@@ -11,6 +11,7 @@ const SOLUTION_FIELDS = {
     solution3: "c9d7t4372ag9rl8"
 };
 const DATE_FIELD_ID = "ckg3vnwv4h6wg9a";
+const USER_ID_FIELD_ID = "clqmvd04l5wmzyl"; // BT ID for tg-id, which is the primary key
 
 let currentRecordId = null;
 let userPlatform = null;
@@ -66,8 +67,9 @@ async function findUser(rawId) {
     );
     let data = await res.json();
     if (data.list?.length > 0) {
-        console.log("Найден TG пользователь, recordId:", data.list[0].Id || data.list[0].id);
-        return { recordId: data.list[0].Id || data.list[0].id, platform: 'tg' };
+        const pkValue = data.list[0][USER_ID_FIELD_ID];
+        console.log("Найден TG пользователь, pkValue:", pkValue);
+        return { recordId: pkValue, platform: 'tg' };
     }
 
     // 2. Ищем как VK (с суффиксом _VK)
@@ -78,15 +80,16 @@ async function findUser(rawId) {
     );
     data = await res.json();
     if (data.list?.length > 0) {
-        console.log("Найден VK пользователь, recordId:", data.list[0].Id || data.list[0].id);
-        return { recordId: data.list[0].Id || data.list[0].id, platform: 'vk' };
+        const pkValue = data.list[0][USER_ID_FIELD_ID];
+        console.log("Найден VK пользователь, pkValue:", pkValue);
+        return { recordId: pkValue, platform: 'vk' };
     }
 
     console.log("Пользователь не найден даже по BT ID колонки");
     return null;
 }
 
-// Загрузка файла (ИСПРАВЛЕННАЯ: bulk PATCH с массивом, Id в теле)
+// Загрузка файла (ИСПРАВЛЕННАЯ: bulk PATCH с массивом, PK в теле)
 async function uploadFile(recordId, fieldId, file, extra = {}) {
     const form = new FormData();
     form.append("file", file);
@@ -109,7 +112,7 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
 
     // Тело как массив с одним объектом (bulk для single update)
     const body = [{
-        Id: Number(recordId),  // ← Id в теле!
+        [USER_ID_FIELD_ID]: recordId,  // ← PK field BT ID with its value!
         [fieldId]: [{ 
             title: file.name, 
             url, 
