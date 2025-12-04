@@ -37,7 +37,7 @@ function showError(msg) {
     </div>`;
 }
 
-// Ждём vkBridge (обязательно для VK Mini Apps 2025)
+// Ждём vkBridge
 async function waitForVkBridge() {
     return new Promise(resolve => {
         if (window.vkBridge) return resolve(vkBridge);
@@ -51,39 +51,35 @@ async function waitForVkBridge() {
     });
 }
 
-// Поиск пользователя в NocoDB
-// Поиск пользователя в NocoDB (исправленная версия)
-async function findUser(id) {
-    console.log("Ищем пользователя с ID:", id); // ← Твой rawUserId
+// === ПОЧИНЕННАЯ ФУНКЦИЯ ПОИСКА (главное изменение!) ===
+async function findUser(rawId) {
+    const userId = Number(rawId);                     // ← Приводим к чистому числу
+    if (!userId || isNaN(userId)) return null;
 
-    // TG поиск
-    const tgWhere = `(tg-id,eq,${id})`;
-    console.log("TG запрос:", `${RECORDS_ENDPOINT}?where=${tgWhere}`);
-    let res = await fetch(`${RECORDS_ENDPOINT}?where=${tgWhere}`, { headers: { "xc-token": API_KEY } });
+    // 1. Ищем как Telegram (чистый ID)
+    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${userId})&limit=1`, {
+        headers: { "xc-token": API_KEY }
+    });
     let data = await res.json();
-    console.log("TG ответ от сервера:", data); // ← Ключ: смотри list и ошибки
     if (data.list?.length > 0) {
-        console.log("Найден TG пользователь:", data.list[0]);
         return { recordId: data.list[0].Id || data.list[0].id, platform: 'tg' };
     }
 
-    // VK поиск
-    const vkVal = id + "_VK";
-    const vkWhere = `(tg-id,eq,${vkVal})`;
-    console.log("VK запрос:", `${RECORDS_ENDPOINT}?where=${vkWhere}`);
-    res = await fetch(`${RECORDS_ENDPOINT}?where=${vkWhere}`, { headers: { "xc-token": API_KEY } });
+    // 2. Ищем как VK (с суффиксом _VK)
+    const vkValue = userId + "_VK";
+    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkValue})&limit=1`, {
+        headers: { "xc-token": API_KEY }
+    });
     data = await res.json();
-    console.log("VK ответ от сервера:", data); // ← Сравни с TG
     if (data.list?.length > 0) {
-        console.log("Найден VK пользователь:", data.list[0]);
         return { recordId: data.list[0].Id || data.list[0].id, platform: 'vk' };
     }
 
-    console.log("Пользователь НЕ НАЙДЕН в базе");
     return null;
 }
+// =============================================
 
-// Загрузка файла (исправленная версия)
+// Загрузка файла (уже правильная)
 async function uploadFile(recordId, fieldId, file, extra = {}) {
     const form = new FormData();
     form.append("file", file);
@@ -95,48 +91,26 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         body: form 
     });
     
-    if (!up.ok) {
-        const errorText = await up.text();
-        console.error("Ошибка загрузки файла:", errorText);
-        throw new Error("Не удалось загрузить файл на сервер");
-    }
+    if (!up.ok) throw new Error("Не удалось загрузить файл на сервер");
 
     const info = await up.json();
     const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
 
-    // ИСПРАВЛЕНИЕ: Используем правильный URL для обновления записи
-    const UPDATE_ENDPOINT = `${RECORDS_ENDPOINT}/${recordId}`;
-    
     const body = { 
-        [fieldId]: [{ 
-            title: file.name, 
-            url, 
-            mimetype: file.type, 
-            size: file.size 
-        }], 
+        [fieldId]: [{ title: file.name, url, mimetype: file.type, size: file.size }], 
         ...extra 
     };
 
-    console.log("Обновляю запись:", UPDATE_ENDPOINT);
-    console.log("Тело запроса:", body);
-
-    const patch = await fetch(UPDATE_ENDPOINT, {
+    const patch = await fetch(`${RECORDS_ENDPOINT}/${recordId}`, {
         method: "PATCH",
-        headers: { 
-            "xc-token": API_KEY, 
-            "Content-Type": "application/json" 
-        },
+        headers: { "xc-token": API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify(body)
     });
     
     if (!patch.ok) {
-        const errorText = await patch.text();
-        console.error("Ошибка обновления записи:", errorText);
-        throw new Error("Ошибка сохранения в базу данных");
+        const err = await patch.text();
+        throw new Error("Ошибка сохранения в базу: " + err);
     }
-    
-    const result = await patch.json();
-    return result;
 }
 
 // Прогресс-бар
@@ -157,37 +131,33 @@ async function showProgress(barId, statusId) {
 // ======================= ЗАПУСК =======================
 (async () => {
     try {
-        // 1. Ждём VK Bridge
         const bridge = await waitForVkBridge();
 
         if (bridge) {
             await bridge.send("VKWebAppInit");
             const info = await bridge.send("VKWebAppGetUserInfo");
-            rawUserId = info.id;
+            rawUserId = Number(info.id);           // ← Number!
             userPlatform = "vk";
-            console.log("VK пользователь:", rawUserId);
+            console.log("VK ID:", rawUserId);
         }
-        // 2. Если не VK — значит Telegram
         else if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
             const tg = window.Telegram.WebApp;
             tg.ready();
             tg.expand();
-            rawUserId = tg.initDataUnsafe.user.id;
+            rawUserId = Number(tg.initDataUnsafe.user.id);  // ← Number! (главное исправление)
             userPlatform = "tg";
-            console.log("Telegram пользователь:", rawUserId);
+            console.log("Telegram ID:", rawUserId);
         }
         else {
             throw new Error("Платформа не определена");
         }
 
-        // 3. Ищем пользователя в базе
         const user = await findUser(rawUserId);
-        if (!user) throw new Error("Вы не зарегистрированы. Напишите в бот");
+        if (!user) throw new Error("Ты не зарегистрирован в конкурсе. Напиши в бот");
 
         currentRecordId = user.recordId;
         userPlatform = user.platform;
 
-        // 4. Поехали!
         showScreen("welcome");
 
     } catch (err) {
