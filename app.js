@@ -180,6 +180,7 @@ async function showProgress(barId, statusId) {
     try {
         console.log("Запуск приложения...");
 
+        // 1. Определяем платформу и rawUserId
         const bridge = await waitForVkBridge();
         if (bridge) {
             await bridge.send("VKWebAppInit");
@@ -200,18 +201,22 @@ async function showProgress(barId, statusId) {
             throw new Error("Платформа не определена");
         }
 
+        // 2. Ищем пользователя в базе
         console.log("Ищем пользователя в базе по id:", rawUserId);
         const user = await findUser(rawUserId);
 
         if (!user || !user.recordId || user.recordId <= 0) {
             console.error("КРИТИЧЕСКАЯ ОШИБКА: recordId невалидный!", user);
-            throw new Error("Не удалось найти вашу запись в базе. Обратитесь в поддержку.");
+            throw new Error("Вы не зарегистрированы или запись повреждена. Напишите в бот.");
         }
 
+        // 3. ТОЛЬКО ПОСЛЕ ЭТОГО устанавливаем переменные и показываем интерфейс
         currentRecordId = user.recordId;
         userPlatform = user.platform;
 
         console.log("УСПЕШНО! currentRecordId =", currentRecordId, "platform =", userPlatform);
+
+        // 4. Теперь можно показывать интерфейс
         showScreen("welcome");
 
     } catch (err) {
