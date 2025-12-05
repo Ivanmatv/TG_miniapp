@@ -54,40 +54,47 @@ async function waitForVkBridge() {
 // Поиск пользователя в NocoDB
 async function findUser(id) {
     // Попытка 1 — обычный TG ID
-    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, { 
-        headers: { "xc-token": API_KEY } 
+    let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, {
+        headers: { "xc-token": API_KEY }
     });
     let data = await res.json();
-    
-    if (data.list?.length > 0 && data.list[0].Id != null) {
-        console.log("Найден TG-пользователь, Id =", data.list[0].Id);
-        return { 
-            recordId: Number(data.list[0].Id),   // ← принудительно число
-            platform: 'tg' 
+
+    console.log("Результат поиска TG:", data);
+
+    if (data.list?.length > 0 && data.list[0].id != null) { // <-- id
+        console.log("Найден TG-пользователь, id =", data.list[0].id);
+        return {
+            recordId: Number(data.list[0].id),   // <-- id
+            platform: 'tg'
         };
     }
 
     // Попытка 2 — VK
     const vkVal = id + "_VK";
-    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkVal})`, { 
-        headers: { "xc-token": API_KEY } 
+    res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkVal})`, {
+        headers: { "xc-token": API_KEY }
     });
     data = await res.json();
-    
-    if (data.list?.length > 0 && data.list[0].Id != null) {
-        console.log("Найден VK-пользователь, Id =", data.list[0].Id);
-        return { 
-            recordId: Number(data.list[0].Id), 
-            platform: 'vk' 
+
+    console.log("Результат поиска VK:", data);
+
+    if (data.list?.length > 0 && data.list[0].id != null) { // <-- id
+        console.log("Найден VK-пользователь, id =", data.list[0].id);
+        return {
+            recordId: Number(data.list[0].id),
+            platform: 'vk'
         };
     }
 
-    // Если ничего не нашли или Id пустой — явно возвращаем null
-    console.log("Пользователь НЕ найден или Id пустой. tg-id искали:", id, "и", vkVal);
+    console.log("Пользователь НЕ найден или id пустой. tg-id искали:", id, "и", vkVal);
     return null;
 }
 
 async function uploadFile(recordId, fieldId, file, extra = {}) {
+    if (recordId == null || Number.isNaN(recordId)) {
+        throw new Error("Не найден ID вашей записи. Попробуйте перезапустить мини-апп.");
+    }
+
     // 1. Загружаем файл
     const form = new FormData();
     form.append("file", file);
@@ -101,11 +108,13 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
 
     if (!up.ok) {
         const text = await up.text();
-        throw new Error("Не загрузить файл: " + up.status + " " + text);
+        throw new Error("Не удалось загрузить файл: " + up.status + " " + text);
     }
 
     const info = await up.json();
-    const url = Array.isArray(info) ? (info[0].url || `${BASE_URL}/${info[0].path}`) : info.url;
+    const url = Array.isArray(info)
+        ? (info[0].url || `${BASE_URL}/${info[0].path}`)
+        : info.url;
 
     const fileObj = {
         title: file.name,
@@ -114,7 +123,7 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         size: file.size
     };
 
-    // 2. Обновляем запись — ТОЧНО как у коллеги (работает на твоём сервере!)
+    // 2. Обновляем запись
     const patch = await fetch(RECORDS_ENDPOINT, {  // ← без /recordId и без /bulk
         method: "PATCH",
         headers: {
@@ -122,7 +131,7 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            Id: recordId,           // ← Обязательно Id в теле!
+            Id: recordId,           // ← PK-колонка в таблице
             [fieldId]: [fileObj],   // ← Attachment как массив
             ...extra                // ← дата и другие поля
         })
@@ -184,6 +193,8 @@ async function showProgress(barId, statusId) {
         currentRecordId = user.recordId;
         userPlatform = user.platform;
 
+        console.log("currentRecordId =", currentRecordId, "platform =", userPlatform);
+
         // 4. Поехали!
         showScreen("welcome");
 
@@ -202,12 +213,28 @@ async function handleUpload(num, fieldId, nextScreen = null) {
     const file = input.files[0];
     err.classList.add("hidden");
 
-    if (!file) return err.textContent = "Выберите файл", err.classList.remove("hidden");
-    if (file.size > 15*1024*1024) return err.textContent = "Файл больше 15 МБ", err.classList.remove("hidden");
+    if (!file) {
+        err.textContent = "Выберите файл";
+        err.classList.remove("hidden");
+        return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+        err.textContent = "Файл больше 15 МБ";
+        err.classList.remove("hidden");
+        return;
+    }
+
+    if (currentRecordId == null || Number.isNaN(currentRecordId)) {
+        err.textContent = "Не найден ID вашей записи. Перезапустите мини-апп.";
+        err.classList.remove("hidden");
+        return;
+    }
 
     try {
         await showProgress(`progress${num}`, `status${num}`);
-        const extra = num === 1 ? { [DATE_FIELD_ID]: new Date().toISOString().split('T')[0] } : {};
+        const extra = num === 1
+            ? { [DATE_FIELD_ID]: new Date().toISOString().split('T')[0] }
+            : {};
         await uploadFile(currentRecordId, fieldId, file, extra);
         nextScreen ? showScreen(nextScreen) : showScreen("result");
     } catch (e) {
@@ -225,7 +252,7 @@ document.getElementById("skipFile3")?.addEventListener("click", () => showScreen
 
 document.getElementById("closeApp")?.addEventListener("click", () => {
     if (userPlatform === "vk" && window.vkBridge) {
-        vkBridge.send("VKWebAppClose", {status: "success"});
+        vkBridge.send("VKWebAppClose", { status: "success" });
     } else if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.close();
     }
