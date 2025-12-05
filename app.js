@@ -53,32 +53,47 @@ async function waitForVkBridge() {
 
 // Поиск пользователя в NocoDB
 async function findUser(id) {
+    // Попытка 1 — обычный TG ID
     let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, { 
         headers: { "xc-token": API_KEY } 
     });
-    
     let data = await res.json();
-    if (data.list?.length > 0) {
+    
+    if (data.list?.length > 0 && data.list[0].Id != null) {
+        console.log("Найден TG-пользователь, Id =", data.list[0].Id);
         return { 
-            recordId: data.list[0].Id,   // ← Именно Id, а не NcRecordId!
+            recordId: Number(data.list[0].Id),   // ← принудительно число
             platform: 'tg' 
         };
     }
 
+    // Попытка 2 — VK
     const vkVal = id + "_VK";
     res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${vkVal})`, { 
         headers: { "xc-token": API_KEY } 
     });
     data = await res.json();
-    if (data.list?.length > 0) {
+    
+    if (data.list?.length > 0 && data.list[0].Id != null) {
+        console.log("Найден VK-пользователь, Id =", data.list[0].Id);
         return { 
-            recordId: data.list[0].Id,   // ← и тут тоже Id
+            recordId: Number(data.list[0].Id), 
             platform: 'vk' 
         };
     }
-    console.log("currentRecordId =", currentRecordId);
+
+    // Если ничего не нашли или Id пустой — явно возвращаем null
+    console.log("Пользователь НЕ найден или Id пустой. tg-id искали:", id, "и", vkVal);
     return null;
 }
+
+const user = await findUser(rawUserId);
+if (!user || !user.recordId) {
+    throw new Error("Не удалось найти вашу запись в базе. Напишите в бот.");
+}
+
+currentRecordId = user.recordId;
+userPlatform = user.platform;
 
 async function uploadFile(recordId, fieldId, file, extra = {}) {
     // 1. Загружаем файл
