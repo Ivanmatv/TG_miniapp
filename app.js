@@ -101,6 +101,11 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
     console.log("Начало загрузки файла. recordId =", recordId, "fieldId =", fieldId);
     console.log("Файл:", file.name, file.size, "байт,", file.type);
 
+    if (!recordId) {
+        console.error("currentRecordId пустой! Загрузка невозможна.");
+        throw new Error("Не найден recordId для загрузки файла");
+    }
+
     // 1. Загрузка в storage
     const form = new FormData();
     form.append("file", file);
