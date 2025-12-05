@@ -56,6 +56,7 @@ async function findUser(id) {
     let res = await fetch(`${RECORDS_ENDPOINT}?where=(tg-id,eq,${id})`, { 
         headers: { "xc-token": API_KEY } 
     });
+    
     let data = await res.json();
     if (data.list?.length > 0) {
         return { 
@@ -75,7 +76,7 @@ async function findUser(id) {
             platform: 'vk' 
         };
     }
-
+    console.log("currentRecordId =", currentRecordId);
     return null;
 }
 
@@ -93,7 +94,7 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
 
     if (!up.ok) {
         const text = await up.text();
-        throw new Error("Не удалось загрузить файл: " + up.status + " " + text);
+        throw new Error("Не загрузить файл: " + up.status + " " + text);
     }
 
     const info = await up.json();
@@ -102,23 +103,21 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
     const fileObj = {
         title: file.name,
         url: url,
-        mimetype: file.type || "application/octetet-stream",
+        mimetype: file.type || "application/octet-stream",
         size: file.size
     };
 
-    // 2. Обновляем запись через BULK PATCH — работает ВЕЗДЕ в 2024–2025
-    const patch = await fetch(`${RECORDS_ENDPOINT}/bulk`, {
+    // 2. Обновляем запись — ТОЧНО как у коллеги (работает на твоём сервере!)
+    const patch = await fetch(RECORDS_ENDPOINT, {  // ← без /recordId и без /bulk
         method: "PATCH",
         headers: {
             "xc-token": API_KEY,
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            ids: [recordId],                    // ← массив ID
-            data: {
-                ...extra,
-                [fieldId]: [fileObj]            // ← прикрепляем файл
-            }
+            Id: recordId,           // ← Обязательно Id в теле!
+            [fieldId]: [fileObj],   // ← Attachment как массив
+            ...extra                // ← дата и другие поля
         })
     });
 
@@ -127,7 +126,7 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
         throw new Error("Ошибка сохранения: " + err);
     }
 
-    console.log("Файл успешно прикреплён!");
+    console.log("Файл успешно прикреплён! ID записи:", recordId);
 }
 
 // Прогресс-бар
