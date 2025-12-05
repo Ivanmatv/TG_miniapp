@@ -87,14 +87,6 @@ async function findUser(id) {
     return null;
 }
 
-const user = await findUser(rawUserId);
-if (!user || !user.recordId) {
-    throw new Error("Не удалось найти вашу запись в базе. Напишите в бот.");
-}
-
-currentRecordId = user.recordId;
-userPlatform = user.platform;
-
 async function uploadFile(recordId, fieldId, file, extra = {}) {
     // 1. Загружаем файл
     const form = new FormData();
