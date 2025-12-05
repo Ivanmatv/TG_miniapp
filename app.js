@@ -39,6 +39,29 @@ function showError(msg) {
     </div>`;
 }
 
+// Ждём vkBridge (обязательно для VK Mini Apps 2025) — С ЛОГИРОВАНИЕМ
+async function waitForVkBridge() {
+    console.log("Ожидание VK Bridge...");
+    return new Promise(resolve => {
+        if (window.vkBridge) {
+            console.log("VK Bridge найден сразу");
+            return resolve(vkBridge);
+        }
+        const timer = setInterval(() => {
+            if (window.vkBridge) {
+                console.log("VK Bridge найден через таймер");
+                clearInterval(timer);
+                resolve(window.vkBridge);
+            }
+        }, 50);
+        setTimeout(() => { 
+            clearInterval(timer); 
+            console.warn("VK Bridge не найден за 4 секунды, возвращаем null");
+            resolve(null); 
+        }, 4000);
+    });
+}
+
 // Поиск пользователя — СУПЕР-ЛОГИРОВАНИЕ
 async function findUser(id) {
     console.log("Поиск пользователя по tg-id:", id);
@@ -135,6 +158,21 @@ async function uploadFile(recordId, fieldId, file, extra = {}) {
     }
 
     console.log("УСПЕХ! Файл прикреплён к записи", recordId);
+}
+
+// Прогресс-бар
+async function showProgress(barId, statusId) {
+    const bar = document.getElementById(barId);
+    const status = document.getElementById(statusId);
+    let p = 0;
+    return new Promise(res => {
+        const int = setInterval(() => {
+            p += 15 + Math.random() * 25;
+            if (p >= 100) { p = 100; clearInterval(int); status.textContent = "Готово!"; res(); }
+            bar.style.width = p + "%";
+            status.textContent = `Загрузка ${Math.round(p)}%`;
+        }, 100);
+    });
 }
 
 // ======================= ЗАПУСК =======================
